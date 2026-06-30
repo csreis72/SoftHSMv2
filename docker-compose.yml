@@ -1,0 +1,18 @@
+services:
+  dev:
+    build:
+      context: .
+      target: dev
+    image: softhsm2-dev:local
+    volumes:
+      - .:/src
+      - softhsm2-build:/src/build
+      - softhsm2-tokens:/var/lib/softhsm/tokens
+    working_dir: /src
+    stdin_open: true
+    tty: true
+    command: /bin/bash
+
+volumes:
+  softhsm2-build:
+  softhsm2-tokens:
