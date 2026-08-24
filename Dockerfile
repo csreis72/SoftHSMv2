@@ -127,7 +127,7 @@ COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
 ENV LD_LIBRARY_PATH="/opt/openssl/lib64:/opt/liboqs/lib"
-ENV PATH="/opt/openssl/bin:${PATH}"
+ENV PATH="/opt/softhsm2/bin:/opt/openssl/bin:${PATH}"
 ENV OPENSSL_CONF="/opt/openssl/etc/ssl/openssl.cnf"
 ENV OPENSSL_ROOT_DIR="/opt/openssl"
 ENV PKG_CONFIG_PATH="/opt/openssl/lib64/pkgconfig:/opt/liboqs/lib/pkgconfig"
