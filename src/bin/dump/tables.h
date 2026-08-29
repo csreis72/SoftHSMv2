@@ -484,6 +484,7 @@ void fill_CKM_table(std::map<unsigned long, std::string> &t)
 	t[CKM_ML_DSA] = "CKM_ML_DSA";
 	t[CKM_ML_KEM_KEY_PAIR_GEN] = "CKM_ML_KEM_KEY_PAIR_GEN";
 	t[CKM_ML_KEM] = "CKM_ML_KEM";
+	t[CKM_FALCON_KEY_PAIR_GEN] = "CKM_FALCON_KEY_PAIR_GEN";
 }
 
 void fill_CKO_table(std::map<unsigned long, std::string> &t)
@@ -552,6 +553,7 @@ void fill_CKK_table(std::map<unsigned long, std::string> &t)
 	t[CKK_EC_EDWARDS] = "CKK_EC_EDWARDS";
 	t[CKK_ML_DSA] = "CKK_ML_DSA";
 	t[CKK_ML_KEM] = "CKK_ML_KEM";
+	t[CKK_FALCON] = "CKK_FALCON";
 }
 
 void fill_CKC_table(std::map<unsigned long, std::string> &t)
