@@ -26,6 +26,9 @@ set(SOURCES AESKey.cpp
             ECPublicKey.cpp
             EDPrivateKey.cpp
             EDPublicKey.cpp
+            FalconParameters.cpp
+            FalconPrivateKey.cpp
+            FalconPublicKey.cpp
             GOSTPrivateKey.cpp
             GOSTPublicKey.cpp
             HashAlgorithm.cpp

@@ -26,6 +26,9 @@ libsofthsm_crypto_la_SOURCES =	AESKey.cpp \
 				ECPrivateKey.cpp \
 				EDPublicKey.cpp \
 				EDPrivateKey.cpp \
+				FalconParameters.cpp \
+				FalconPublicKey.cpp \
+				FalconPrivateKey.cpp \
 				GOSTPublicKey.cpp \
 				GOSTPrivateKey.cpp \
 				HashAlgorithm.cpp \
