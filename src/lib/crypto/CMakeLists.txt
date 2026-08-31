@@ -84,6 +84,9 @@ if(WITH_OPENSSL)
                         OSSLGOSTR3411.cpp
                         OSSLHMAC.cpp
                         OSSLMD5.cpp
+                        OSSLFalconKeyPair.cpp
+                        OSSLFalconPrivateKey.cpp
+                        OSSLFalconPublicKey.cpp
                         OSSLMLDSA.cpp
                         OSSLMLDSAKeyPair.cpp
                         OSSLMLDSAPrivateKey.cpp

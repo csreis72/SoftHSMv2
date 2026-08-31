@@ -91,6 +91,9 @@ libsofthsm_crypto_la_SOURCES +=	OSSLAES.cpp \
 				OSSLCMAC.cpp \
 				OSSLHMAC.cpp \
 				OSSLMD5.cpp \
+				OSSLFalconKeyPair.cpp \
+				OSSLFalconPrivateKey.cpp \
+				OSSLFalconPublicKey.cpp \
 				OSSLMLDSA.cpp \
 				OSSLMLDSAKeyPair.cpp \
 				OSSLMLDSAPrivateKey.cpp \
