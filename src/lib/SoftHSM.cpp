@@ -154,6 +154,10 @@ static CK_RV newP11Object(CK_OBJECT_CLASS objClass, CK_KEY_TYPE keyType, CK_CERT
 				*p11object = new P11GOSTPublicKeyObj();
 			else if (keyType == CKK_EC_EDWARDS)
 				*p11object = new P11EDPublicKeyObj();
+#ifdef WITH_FALCON
+			else if (keyType == CKK_FALCON)
+				*p11object = new P11FalconPublicKeyObj();
+#endif
 #ifdef WITH_ML_DSA
 			else if (keyType == CKK_ML_DSA)
 				*p11object = new P11MLDSAPublicKeyObj();
@@ -179,6 +183,10 @@ static CK_RV newP11Object(CK_OBJECT_CLASS objClass, CK_KEY_TYPE keyType, CK_CERT
 				*p11object = new P11GOSTPrivateKeyObj();
 			else if (keyType == CKK_EC_EDWARDS)
 				*p11object = new P11EDPrivateKeyObj();
+#ifdef WITH_FALCON
+			else if (keyType == CKK_FALCON)
+				*p11object = new P11FalconPrivateKeyObj();
+#endif
 #ifdef WITH_ML_DSA
 			else if (keyType == CKK_ML_DSA)
 				*p11object = new P11MLDSAPrivateKeyObj();
