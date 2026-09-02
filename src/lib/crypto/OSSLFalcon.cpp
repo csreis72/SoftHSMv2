@@ -1,0 +1,243 @@
+/*
+ * Copyright (c) 2026 SoftHSMv2 contributors
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ */
+/****************************************************************************
+ OSSLFalcon.cpp
+
+ OpenSSL Falcon asymmetric algorithm implementation
+ *****************************************************************************/
+
+#include "config.h"
+#ifdef WITH_FALCON
+#include "FalconParameters.h"
+#include "log.h"
+#include "OSSLFalcon.h"
+#include "OSSLFalconKeyPair.h"
+#include "OSSLFalconPrivateKey.h"
+#include "OSSLFalconPublicKey.h"
+#include "OSSLUtil.h"
+#include <openssl/err.h>
+#include <openssl/evp.h>
+
+bool OSSLFalcon::sign(PrivateKey* /*privateKey*/, const ByteString& /*dataToSign*/,
+	ByteString& /*signature*/, const AsymMech::Type /*mechanism*/,
+	const MechanismParam* /*mechanismParam*/)
+{
+	ERROR_MSG("Falcon signing is not supported yet");
+	return false;
+}
+
+bool OSSLFalcon::signInit(PrivateKey* /*privateKey*/,
+	const AsymMech::Type /*mechanism*/, const MechanismParam* /*mechanismParam*/)
+{
+	ERROR_MSG("Falcon signing is not supported yet");
+	return false;
+}
+
+bool OSSLFalcon::signUpdate(const ByteString& /*dataToSign*/)
+{
+	ERROR_MSG("Falcon signing is not supported yet");
+	return false;
+}
+
+bool OSSLFalcon::signFinal(ByteString& /*signature*/)
+{
+	ERROR_MSG("Falcon signing is not supported yet");
+	return false;
+}
+
+bool OSSLFalcon::verify(PublicKey* /*publicKey*/, const ByteString& /*originalData*/,
+	const ByteString& /*signature*/, const AsymMech::Type /*mechanism*/,
+	const MechanismParam* /*mechanismParam*/)
+{
+	ERROR_MSG("Falcon verification is not supported yet");
+	return false;
+}
+
+bool OSSLFalcon::verifyInit(PublicKey* /*publicKey*/,
+	const AsymMech::Type /*mechanism*/, const MechanismParam* /*mechanismParam*/)
+{
+	ERROR_MSG("Falcon verification is not supported yet");
+	return false;
+}
+
+bool OSSLFalcon::verifyUpdate(const ByteString& /*originalData*/)
+{
+	ERROR_MSG("Falcon verification is not supported yet");
+	return false;
+}
+
+bool OSSLFalcon::verifyFinal(const ByteString& /*signature*/)
+{
+	ERROR_MSG("Falcon verification is not supported yet");
+	return false;
+}
+
+bool OSSLFalcon::encrypt(PublicKey* /*publicKey*/, const ByteString& /*data*/,
+	ByteString& /*encryptedData*/, const AsymMech::Type /*padding*/,
+	const MechanismParam* /*mechanismParam*/)
+{
+	ERROR_MSG("Falcon does not support encryption");
+	return false;
+}
+
+bool OSSLFalcon::decrypt(PrivateKey* /*privateKey*/,
+	const ByteString& /*encryptedData*/, ByteString& /*data*/,
+	const AsymMech::Type /*padding*/, const MechanismParam* /*mechanismParam*/)
+{
+	ERROR_MSG("Falcon does not support decryption");
+	return false;
+}
+
+unsigned long OSSLFalcon::getMinKeySize()
+{
+	return FalconParameters::FALCON_512_PUB_LENGTH;
+}
+
+unsigned long OSSLFalcon::getMaxKeySize()
+{
+	return FalconParameters::FALCON_512_PUB_LENGTH;
+}
+
+bool OSSLFalcon::generateKeyPair(AsymmetricKeyPair** ppKeyPair,
+	AsymmetricParameters* inParameters, RNG* /*rng*/)
+{
+	if (ppKeyPair == NULL || inParameters == NULL) return false;
+	if (!inParameters->areOfType(FalconParameters::type))
+	{
+		ERROR_MSG("Invalid parameters supplied for Falcon key generation");
+		return false;
+	}
+
+	FalconParameters* parameters = static_cast<FalconParameters*>(inParameters);
+	const unsigned long parameterSet = parameters->getParameterSet();
+	const char* name = OSSL::falconParameterSet2Name(parameterSet);
+	if (name == NULL)
+	{
+		ERROR_MSG("Unknown Falcon parameter set (%lu)", parameterSet);
+		return false;
+	}
+
+	EVP_PKEY_CTX* context = EVP_PKEY_CTX_new_from_name(NULL, name, NULL);
+	EVP_PKEY* generatedKey = NULL;
+	if (context == NULL)
+	{
+		ERROR_MSG("Falcon key generation context failed (0x%08lX)", ERR_get_error());
+		return false;
+	}
+	if (EVP_PKEY_keygen_init(context) <= 0 ||
+		EVP_PKEY_generate(context, &generatedKey) <= 0)
+	{
+		ERROR_MSG("Falcon key generation failed (0x%08lX)", ERR_get_error());
+		EVP_PKEY_free(generatedKey);
+		EVP_PKEY_CTX_free(context);
+		return false;
+	}
+
+	OSSLFalconKeyPair* keyPair = new OSSLFalconKeyPair();
+	OSSLFalconPrivateKey* privateKey =
+		static_cast<OSSLFalconPrivateKey*>(keyPair->getPrivateKey());
+	OSSLFalconPublicKey* publicKey =
+		static_cast<OSSLFalconPublicKey*>(keyPair->getPublicKey());
+	if (!privateKey->setFromOSSL(generatedKey) ||
+		!publicKey->setFromOSSL(generatedKey))
+	{
+		delete keyPair;
+		EVP_PKEY_free(generatedKey);
+		EVP_PKEY_CTX_free(context);
+		return false;
+	}
+
+	*ppKeyPair = keyPair;
+	EVP_PKEY_free(generatedKey);
+	EVP_PKEY_CTX_free(context);
+	return true;
+}
+
+bool OSSLFalcon::reconstructKeyPair(AsymmetricKeyPair** ppKeyPair,
+	ByteString& serialisedData)
+{
+	if (ppKeyPair == NULL || serialisedData.size() == 0) return false;
+
+	ByteString publicData = ByteString::chainDeserialise(serialisedData);
+	ByteString privateData = ByteString::chainDeserialise(serialisedData);
+	OSSLFalconKeyPair* keyPair = new OSSLFalconKeyPair();
+	OSSLFalconPublicKey* publicKey =
+		static_cast<OSSLFalconPublicKey*>(keyPair->getPublicKey());
+	OSSLFalconPrivateKey* privateKey =
+		static_cast<OSSLFalconPrivateKey*>(keyPair->getPrivateKey());
+
+	if (!publicKey->deserialise(publicData) ||
+		!privateKey->deserialise(privateData))
+	{
+		delete keyPair;
+		return false;
+	}
+	privateKey->setPublicValue(publicKey->getValue());
+	*ppKeyPair = keyPair;
+	return true;
+}
+
+bool OSSLFalcon::reconstructPublicKey(PublicKey** ppPublicKey,
+	ByteString& serialisedData)
+{
+	if (ppPublicKey == NULL || serialisedData.size() == 0) return false;
+
+	OSSLFalconPublicKey* publicKey = new OSSLFalconPublicKey();
+	if (!publicKey->deserialise(serialisedData))
+	{
+		delete publicKey;
+		return false;
+	}
+	*ppPublicKey = publicKey;
+	return true;
+}
+
+bool OSSLFalcon::reconstructPrivateKey(PrivateKey** ppPrivateKey,
+	ByteString& serialisedData)
+{
+	if (ppPrivateKey == NULL || serialisedData.size() == 0) return false;
+
+	OSSLFalconPrivateKey* privateKey = new OSSLFalconPrivateKey();
+	if (!privateKey->deserialise(serialisedData))
+	{
+		delete privateKey;
+		return false;
+	}
+	*ppPrivateKey = privateKey;
+	return true;
+}
+
+bool OSSLFalcon::reconstructParameters(AsymmetricParameters** ppParams,
+	ByteString& serialisedData)
+{
+	if (ppParams == NULL || serialisedData.size() == 0) return false;
+
+	FalconParameters* parameters = new FalconParameters();
+	if (!parameters->deserialise(serialisedData))
+	{
+		delete parameters;
+		return false;
+	}
+	*ppParams = parameters;
+	return true;
+}
+
+PublicKey* OSSLFalcon::newPublicKey()
+{
+	return new OSSLFalconPublicKey();
+}
+
+PrivateKey* OSSLFalcon::newPrivateKey()
+{
+	return new OSSLFalconPrivateKey();
+}
+
+AsymmetricParameters* OSSLFalcon::newParameters()
+{
+	return new FalconParameters();
+}
+
+#endif

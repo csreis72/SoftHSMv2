@@ -59,7 +59,8 @@ struct AsymAlgo
 		GOST,
 		EDDSA,
 		MLDSA,
-		MLKEM
+		MLKEM,
+		FALCON
         };
 };
 
