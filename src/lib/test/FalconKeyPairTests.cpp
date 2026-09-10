@@ -112,10 +112,16 @@ void FalconKeyPairTests::testMechanism()
 		&mechanisms[0], &mechanismCount));
 	CPPUNIT_ASSERT(rv == CKR_OK);
 
-	bool found = false;
+	bool foundKeyPairGeneration = false;
+	bool foundSignature = false;
 	for (CK_ULONG i = 0; i < mechanismCount; ++i)
-		found = found || mechanisms[i] == CKM_FALCON_KEY_PAIR_GEN;
-	CPPUNIT_ASSERT(found);
+	{
+		foundKeyPairGeneration = foundKeyPairGeneration ||
+			mechanisms[i] == CKM_FALCON_KEY_PAIR_GEN;
+		foundSignature = foundSignature || mechanisms[i] == CKM_FALCON;
+	}
+	CPPUNIT_ASSERT(foundKeyPairGeneration);
+	CPPUNIT_ASSERT(foundSignature);
 
 	CK_MECHANISM_INFO mechanismInfo;
 	rv = CRYPTOKI_F_PTR(C_GetMechanismInfo(m_initializedTokenSlotID,
@@ -124,6 +130,13 @@ void FalconKeyPairTests::testMechanism()
 	CPPUNIT_ASSERT(mechanismInfo.ulMinKeySize == FALCON_512_PUBLIC_KEY_LENGTH);
 	CPPUNIT_ASSERT(mechanismInfo.ulMaxKeySize == FALCON_512_PUBLIC_KEY_LENGTH);
 	CPPUNIT_ASSERT(mechanismInfo.flags == CKF_GENERATE_KEY_PAIR);
+
+	rv = CRYPTOKI_F_PTR(C_GetMechanismInfo(m_initializedTokenSlotID,
+		CKM_FALCON, &mechanismInfo));
+	CPPUNIT_ASSERT(rv == CKR_OK);
+	CPPUNIT_ASSERT(mechanismInfo.ulMinKeySize == FALCON_512_PUBLIC_KEY_LENGTH);
+	CPPUNIT_ASSERT(mechanismInfo.ulMaxKeySize == FALCON_512_PUBLIC_KEY_LENGTH);
+	CPPUNIT_ASSERT(mechanismInfo.flags == CKF_SIGN);
 }
 
 void FalconKeyPairTests::testGenerateKeyPair()

@@ -881,6 +881,7 @@ void SoftHSM::prepareSupportedMechanisms(std::map<std::string, CK_MECHANISM_TYPE
 #endif
 #ifdef WITH_FALCON
 	t["CKM_FALCON_KEY_PAIR_GEN"] = CKM_FALCON_KEY_PAIR_GEN;
+	t["CKM_FALCON"] = CKM_FALCON;
 #endif
 #ifdef WITH_ML_DSA
 	t["CKM_ML_DSA_KEY_PAIR_GEN"] = CKM_ML_DSA_KEY_PAIR_GEN;
@@ -1434,6 +1435,11 @@ CK_RV SoftHSM::C_GetMechanismInfo(CK_SLOT_ID slotID, CK_MECHANISM_TYPE type, CK_
 			pInfo->ulMinKeySize = falconMinSize;
 			pInfo->ulMaxKeySize = falconMaxSize;
 			pInfo->flags = CKF_GENERATE_KEY_PAIR;
+			break;
+		case CKM_FALCON:
+			pInfo->ulMinKeySize = falconMinSize;
+			pInfo->ulMaxKeySize = falconMaxSize;
+			pInfo->flags = CKF_SIGN;
 			break;
 #endif
 #ifdef WITH_ML_DSA
