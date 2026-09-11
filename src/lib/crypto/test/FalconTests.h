@@ -21,6 +21,8 @@ class FalconTests : public CppUnit::TestFixture
 	CPPUNIT_TEST(testKeyGeneration);
 	CPPUNIT_TEST(testSerialisation);
 	CPPUNIT_TEST(testPKCS8);
+	CPPUNIT_TEST(testSigning);
+	CPPUNIT_TEST(testSigningWithReconstructedPrivateKey);
 	CPPUNIT_TEST(testInvalidInputs);
 	CPPUNIT_TEST_SUITE_END();
 
@@ -33,6 +35,8 @@ public:
 	void testKeyGeneration();
 	void testSerialisation();
 	void testPKCS8();
+	void testSigning();
+	void testSigningWithReconstructedPrivateKey();
 	void testInvalidInputs();
 
 private:

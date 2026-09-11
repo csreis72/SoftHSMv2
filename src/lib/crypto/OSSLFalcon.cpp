@@ -21,12 +21,78 @@
 #include <openssl/err.h>
 #include <openssl/evp.h>
 
-bool OSSLFalcon::sign(PrivateKey* /*privateKey*/, const ByteString& /*dataToSign*/,
-	ByteString& /*signature*/, const AsymMech::Type /*mechanism*/,
-	const MechanismParam* /*mechanismParam*/)
+bool OSSLFalcon::sign(PrivateKey* privateKey, const ByteString& dataToSign,
+	ByteString& signature, const AsymMech::Type mechanism,
+	const MechanismParam* mechanismParam)
 {
-	ERROR_MSG("Falcon signing is not supported yet");
-	return false;
+	if (mechanism != AsymMech::FALCON)
+	{
+		ERROR_MSG("Invalid mechanism supplied (%i)", mechanism);
+		return false;
+	}
+	if (mechanismParam != NULL)
+	{
+		ERROR_MSG("Falcon signing does not accept mechanism parameters");
+		return false;
+	}
+	if (privateKey == NULL)
+	{
+		ERROR_MSG("No private key supplied");
+		return false;
+	}
+	if (!privateKey->isOfType(OSSLFalconPrivateKey::type))
+	{
+		ERROR_MSG("Invalid key type supplied");
+		return false;
+	}
+
+	OSSLFalconPrivateKey* falconKey =
+		static_cast<OSSLFalconPrivateKey*>(privateKey);
+	EVP_PKEY* pkey = falconKey->getOSSLKey();
+	if (pkey == NULL)
+	{
+		ERROR_MSG("Could not get the OpenSSL Falcon private key");
+		return false;
+	}
+
+	EVP_MD_CTX* context = EVP_MD_CTX_new();
+	if (context == NULL)
+	{
+		ERROR_MSG("Falcon signing context allocation failed");
+		return false;
+	}
+	if (EVP_DigestSignInit(context, NULL, NULL, NULL, pkey) <= 0)
+	{
+		ERROR_MSG("Falcon signing initialization failed (0x%08lX)",
+			ERR_get_error());
+		EVP_MD_CTX_free(context);
+		return false;
+	}
+
+	size_t signatureLength = 0;
+	if (EVP_DigestSign(context, NULL, &signatureLength,
+		dataToSign.const_byte_str(), dataToSign.size()) <= 0 ||
+		signatureLength == 0 ||
+		signatureLength > falconKey->getOutputLength())
+	{
+		ERROR_MSG("Falcon signature size query failed (0x%08lX)",
+			ERR_get_error());
+		EVP_MD_CTX_free(context);
+		return false;
+	}
+
+	signature.resize(signatureLength);
+	if (EVP_DigestSign(context, signature.byte_str(), &signatureLength,
+		dataToSign.const_byte_str(), dataToSign.size()) <= 0)
+	{
+		ERROR_MSG("Falcon signing failed (0x%08lX)", ERR_get_error());
+		signature.resize(0);
+		EVP_MD_CTX_free(context);
+		return false;
+	}
+	signature.resize(signatureLength);
+	EVP_MD_CTX_free(context);
+	return true;
 }
 
 bool OSSLFalcon::signInit(PrivateKey* /*privateKey*/,

@@ -101,7 +101,8 @@ struct AsymMech
 		GOST_GOST,
 		EDDSA,
 		MLDSA,
-		MLKEM
+		MLKEM,
+		FALCON
 	};
 };
 

@@ -19,8 +19,31 @@
 #include "FalconParameters.h"
 #include "FalconPrivateKey.h"
 #include "FalconPublicKey.h"
+#include "OSSLFalconPublicKey.h"
+#include <openssl/evp.h>
 
 CPPUNIT_TEST_SUITE_REGISTRATION(FalconTests);
+
+namespace
+{
+	bool verifyFalconSignature(FalconPublicKey* publicKey,
+		const ByteString& data, const ByteString& signature)
+	{
+		OSSLFalconPublicKey* osslPublicKey =
+			static_cast<OSSLFalconPublicKey*>(publicKey);
+		EVP_PKEY* pkey = osslPublicKey->getOSSLKey();
+		if (pkey == NULL) return false;
+
+		EVP_MD_CTX* context = EVP_MD_CTX_new();
+		if (context == NULL) return false;
+		const bool result =
+			EVP_DigestVerifyInit(context, NULL, NULL, NULL, pkey) > 0 &&
+			EVP_DigestVerify(context, signature.const_byte_str(),
+				signature.size(), data.const_byte_str(), data.size()) == 1;
+		EVP_MD_CTX_free(context);
+		return result;
+	}
+}
 
 void FalconTests::setUp()
 {
@@ -166,6 +189,67 @@ void FalconTests::testPKCS8()
 	CPPUNIT_ASSERT(!decodedPrivateKey->PKCS8Decode(pkcs8WithTrailingData));
 
 	falcon->recyclePrivateKey(decodedPrivateKey);
+	falcon->recycleKeyPair(keyPair);
+	falcon->recycleParameters(parameters);
+}
+
+void FalconTests::testSigning()
+{
+	FalconParameters* parameters = new FalconParameters();
+	parameters->setParameterSet(FalconParameters::FALCON_512_PARAMETER_SET);
+
+	AsymmetricKeyPair* keyPair = NULL;
+	CPPUNIT_ASSERT(falcon->generateKeyPair(&keyPair, parameters));
+	CPPUNIT_ASSERT(keyPair != NULL);
+
+	ByteString dataToSign("0123456789abcdef");
+	ByteString signature;
+	CPPUNIT_ASSERT(falcon->sign(keyPair->getPrivateKey(), dataToSign,
+		signature, AsymMech::FALCON));
+	CPPUNIT_ASSERT(signature.size() > 0);
+	CPPUNIT_ASSERT(signature.size() <=
+		FalconParameters::FALCON_512_SIGNATURE_LENGTH);
+	CPPUNIT_ASSERT(verifyFalconSignature(
+		static_cast<FalconPublicKey*>(keyPair->getPublicKey()),
+		dataToSign, signature));
+
+	CPPUNIT_ASSERT(!falcon->sign(NULL, dataToSign, signature,
+		AsymMech::FALCON));
+	CPPUNIT_ASSERT(!falcon->sign(keyPair->getPrivateKey(), dataToSign,
+		signature, AsymMech::Unknown));
+
+	falcon->recycleKeyPair(keyPair);
+	falcon->recycleParameters(parameters);
+}
+
+void FalconTests::testSigningWithReconstructedPrivateKey()
+{
+	FalconParameters* parameters = new FalconParameters();
+	parameters->setParameterSet(FalconParameters::FALCON_512_PARAMETER_SET);
+
+	AsymmetricKeyPair* keyPair = NULL;
+	CPPUNIT_ASSERT(falcon->generateKeyPair(&keyPair, parameters));
+	CPPUNIT_ASSERT(keyPair != NULL);
+
+	ByteString serialisedPrivateKey = keyPair->getPrivateKey()->serialise();
+	PrivateKey* reconstructedPrivateKey = NULL;
+	CPPUNIT_ASSERT(falcon->reconstructPrivateKey(&reconstructedPrivateKey,
+		serialisedPrivateKey));
+	CPPUNIT_ASSERT(reconstructedPrivateKey != NULL);
+	CPPUNIT_ASSERT(serialisedPrivateKey.size() == 0);
+
+	ByteString dataToSign("fedcba9876543210");
+	ByteString signature;
+	CPPUNIT_ASSERT(falcon->sign(reconstructedPrivateKey, dataToSign,
+		signature, AsymMech::FALCON));
+	CPPUNIT_ASSERT(signature.size() > 0);
+	CPPUNIT_ASSERT(signature.size() <=
+		FalconParameters::FALCON_512_SIGNATURE_LENGTH);
+	CPPUNIT_ASSERT(verifyFalconSignature(
+		static_cast<FalconPublicKey*>(keyPair->getPublicKey()),
+		dataToSign, signature));
+
+	falcon->recyclePrivateKey(reconstructedPrivateKey);
 	falcon->recycleKeyPair(keyPair);
 	falcon->recycleParameters(parameters);
 }
