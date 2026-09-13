@@ -8,6 +8,10 @@
 #include <string.h>
 #include <vector>
 #include "FalconKeyPairTests.h"
+#ifdef WITH_FALCON
+#include <openssl/core_names.h>
+#include <openssl/evp.h>
+#endif
 
 CPPUNIT_TEST_SUITE_REGISTRATION(FalconKeyPairTests);
 
@@ -16,6 +20,40 @@ namespace
 {
 	const CK_ULONG FALCON_512_PARAMETER_SET = 1UL;
 	const CK_ULONG FALCON_512_PUBLIC_KEY_LENGTH = 897UL;
+	const CK_ULONG FALCON_512_SIGNATURE_LENGTH = 752UL;
+
+	bool verifyFalconSignature(const std::vector<CK_BYTE>& publicValue,
+		const CK_BYTE* data, CK_ULONG dataLength,
+		const std::vector<CK_BYTE>& signature)
+	{
+		EVP_PKEY_CTX* keyContext =
+			EVP_PKEY_CTX_new_from_name(NULL, "falcon512", NULL);
+		EVP_PKEY* publicKey = NULL;
+		EVP_MD_CTX* verifyContext = NULL;
+		bool verified = false;
+
+		OSSL_PARAM params[] = {
+			OSSL_PARAM_construct_octet_string(OSSL_PKEY_PARAM_PUB_KEY,
+				(void*)&publicValue[0], publicValue.size()),
+			OSSL_PARAM_construct_end()
+		};
+		if (keyContext != NULL && EVP_PKEY_fromdata_init(keyContext) > 0 &&
+			EVP_PKEY_fromdata(keyContext, &publicKey,
+				EVP_PKEY_PUBLIC_KEY, params) > 0)
+		{
+			verifyContext = EVP_MD_CTX_new();
+			verified = verifyContext != NULL &&
+				EVP_DigestVerifyInit(verifyContext, NULL, NULL, NULL,
+					publicKey) > 0 &&
+				EVP_DigestVerify(verifyContext, &signature[0], signature.size(),
+					data, dataLength) == 1;
+		}
+
+		EVP_MD_CTX_free(verifyContext);
+		EVP_PKEY_free(publicKey);
+		EVP_PKEY_CTX_free(keyContext);
+		return verified;
+	}
 }
 
 void FalconKeyPairTests::openUserSession(CK_SESSION_HANDLE& hSession)
@@ -36,7 +74,8 @@ void FalconKeyPairTests::openUserSession(CK_SESSION_HANDLE& hSession)
 
 CK_RV FalconKeyPairTests::generateFalconKeyPair(CK_SESSION_HANDLE hSession,
 	CK_BBOOL token, const char* label, CK_BYTE id,
-	CK_OBJECT_HANDLE& hPublicKey, CK_OBJECT_HANDLE& hPrivateKey)
+	CK_OBJECT_HANDLE& hPublicKey, CK_OBJECT_HANDLE& hPrivateKey,
+	CK_BBOOL canSign)
 {
 	CK_MECHANISM mechanism = { CKM_FALCON_KEY_PAIR_GEN, NULL_PTR, 0 };
 	CK_KEY_TYPE keyType = CKK_FALCON;
@@ -58,7 +97,7 @@ CK_RV FalconKeyPairTests::generateFalconKeyPair(CK_SESSION_HANDLE hSession,
 		{ CKA_LABEL, (CK_VOID_PTR)label, labelLength },
 		{ CKA_ID, &id, sizeof(id) },
 		{ CKA_KEY_TYPE, &keyType, sizeof(keyType) },
-		{ CKA_SIGN, &bTrue, sizeof(bTrue) },
+		{ CKA_SIGN, &canSign, sizeof(canSign) },
 		{ CKA_SENSITIVE, &bTrue, sizeof(bTrue) },
 		{ CKA_TOKEN, &token, sizeof(token) },
 		{ CKA_PRIVATE, &bTrue, sizeof(bTrue) },
@@ -265,6 +304,119 @@ void FalconKeyPairTests::testTokenKeyPairPersistence()
 	CPPUNIT_ASSERT(rv == CKR_OK);
 	rv = CRYPTOKI_F_PTR(C_DestroyObject(hSession, hPrivateKey));
 	CPPUNIT_ASSERT(rv == CKR_OK);
+	rv = CRYPTOKI_F_PTR(C_CloseSession(hSession));
+	CPPUNIT_ASSERT(rv == CKR_OK);
+}
+
+void FalconKeyPairTests::testSign()
+{
+	CK_SESSION_HANDLE hSession;
+	openUserSession(hSession);
+
+	CK_OBJECT_HANDLE hPublicKey;
+	CK_OBJECT_HANDLE hPrivateKey;
+	CK_RV rv = generateFalconKeyPair(hSession, CK_FALSE,
+		"falcon-sign-key", 3, hPublicKey, hPrivateKey);
+	CPPUNIT_ASSERT(rv == CKR_OK);
+
+	CK_ATTRIBUTE publicValueAttribute = { CKA_VALUE, NULL_PTR, 0 };
+	rv = CRYPTOKI_F_PTR(C_GetAttributeValue(hSession, hPublicKey,
+		&publicValueAttribute, 1));
+	CPPUNIT_ASSERT(rv == CKR_OK);
+	CPPUNIT_ASSERT(publicValueAttribute.ulValueLen ==
+		FALCON_512_PUBLIC_KEY_LENGTH);
+	std::vector<CK_BYTE> publicValue(publicValueAttribute.ulValueLen);
+	publicValueAttribute.pValue = &publicValue[0];
+	rv = CRYPTOKI_F_PTR(C_GetAttributeValue(hSession, hPublicKey,
+		&publicValueAttribute, 1));
+	CPPUNIT_ASSERT(rv == CKR_OK);
+
+	CK_MECHANISM mechanism = { CKM_FALCON, NULL_PTR, 0 };
+	CK_BYTE data[] = { 0x46, 0x61, 0x6c, 0x63, 0x6f, 0x6e };
+	rv = CRYPTOKI_F_PTR(C_SignInit(hSession, &mechanism, hPrivateKey));
+	CPPUNIT_ASSERT(rv == CKR_OK);
+
+	CK_ULONG signatureLength = 0;
+	rv = CRYPTOKI_F_PTR(C_Sign(hSession, data, sizeof(data),
+		NULL_PTR, &signatureLength));
+	CPPUNIT_ASSERT(rv == CKR_OK);
+	CPPUNIT_ASSERT(signatureLength == FALCON_512_SIGNATURE_LENGTH);
+
+	std::vector<CK_BYTE> signature(FALCON_512_SIGNATURE_LENGTH);
+	signatureLength = FALCON_512_SIGNATURE_LENGTH - 1;
+	rv = CRYPTOKI_F_PTR(C_Sign(hSession, data, sizeof(data),
+		&signature[0], &signatureLength));
+	CPPUNIT_ASSERT(rv == CKR_BUFFER_TOO_SMALL);
+	CPPUNIT_ASSERT(signatureLength == FALCON_512_SIGNATURE_LENGTH);
+
+	rv = CRYPTOKI_F_PTR(C_Sign(hSession, data, sizeof(data),
+		&signature[0], &signatureLength));
+	CPPUNIT_ASSERT(rv == CKR_OK);
+	CPPUNIT_ASSERT(signatureLength > 0);
+	CPPUNIT_ASSERT(signatureLength <= FALCON_512_SIGNATURE_LENGTH);
+	signature.resize(signatureLength);
+	CPPUNIT_ASSERT(verifyFalconSignature(publicValue, data, sizeof(data),
+		signature));
+
+	rv = CRYPTOKI_F_PTR(C_Sign(hSession, data, sizeof(data),
+		&signature[0], &signatureLength));
+	CPPUNIT_ASSERT(rv == CKR_OPERATION_NOT_INITIALIZED);
+
+	rv = CRYPTOKI_F_PTR(C_DestroyObject(hSession, hPublicKey));
+	CPPUNIT_ASSERT(rv == CKR_OK);
+	rv = CRYPTOKI_F_PTR(C_DestroyObject(hSession, hPrivateKey));
+	CPPUNIT_ASSERT(rv == CKR_OK);
+	rv = CRYPTOKI_F_PTR(C_CloseSession(hSession));
+	CPPUNIT_ASSERT(rv == CKR_OK);
+}
+
+void FalconKeyPairTests::testSignErrors()
+{
+	CK_SESSION_HANDLE hSession;
+	openUserSession(hSession);
+
+	CK_OBJECT_HANDLE hPublicKey;
+	CK_OBJECT_HANDLE hPrivateKey;
+	CK_RV rv = generateFalconKeyPair(hSession, CK_FALSE,
+		"falcon-no-sign-key", 4, hPublicKey, hPrivateKey, CK_FALSE);
+	CPPUNIT_ASSERT(rv == CKR_OK);
+
+	CK_MECHANISM mechanism = { CKM_FALCON, NULL_PTR, 0 };
+	rv = CRYPTOKI_F_PTR(C_SignInit(hSession, &mechanism, hPrivateKey));
+	CPPUNIT_ASSERT(rv == CKR_KEY_FUNCTION_NOT_PERMITTED);
+
+	rv = CRYPTOKI_F_PTR(C_DestroyObject(hSession, hPublicKey));
+	CPPUNIT_ASSERT(rv == CKR_OK);
+	rv = CRYPTOKI_F_PTR(C_DestroyObject(hSession, hPrivateKey));
+	CPPUNIT_ASSERT(rv == CKR_OK);
+
+	rv = generateFalconKeyPair(hSession, CK_TRUE,
+		"falcon-private-sign-key", 5, hPublicKey, hPrivateKey);
+	CPPUNIT_ASSERT(rv == CKR_OK);
+
+	CK_BYTE invalidParameter = 0;
+	mechanism.pParameter = &invalidParameter;
+	mechanism.ulParameterLen = sizeof(invalidParameter);
+	rv = CRYPTOKI_F_PTR(C_SignInit(hSession, &mechanism, hPrivateKey));
+	CPPUNIT_ASSERT(rv == CKR_ARGUMENTS_BAD);
+
+	mechanism.pParameter = NULL_PTR;
+	mechanism.ulParameterLen = 0;
+	rv = CRYPTOKI_F_PTR(C_Logout(hSession));
+	CPPUNIT_ASSERT(rv == CKR_OK);
+	rv = CRYPTOKI_F_PTR(C_SignInit(hSession, &mechanism, hPrivateKey));
+	CPPUNIT_ASSERT(rv == CKR_OBJECT_HANDLE_INVALID);
+	rv = CRYPTOKI_F_PTR(C_Login(hSession, CKU_USER,
+		m_userPin1, m_userPin1Length));
+	CPPUNIT_ASSERT(rv == CKR_OK);
+	hPrivateKey = findObject(hSession, CKO_PRIVATE_KEY,
+		"falcon-private-sign-key");
+	CPPUNIT_ASSERT(hPrivateKey != CK_INVALID_HANDLE);
+	rv = CRYPTOKI_F_PTR(C_DestroyObject(hSession, hPublicKey));
+	CPPUNIT_ASSERT(rv == CKR_OK);
+	rv = CRYPTOKI_F_PTR(C_DestroyObject(hSession, hPrivateKey));
+	CPPUNIT_ASSERT(rv == CKR_OK);
+
 	rv = CRYPTOKI_F_PTR(C_CloseSession(hSession));
 	CPPUNIT_ASSERT(rv == CKR_OK);
 }

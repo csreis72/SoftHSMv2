@@ -49,6 +49,9 @@
 #include "ECPrivateKey.h"
 #include "EDPublicKey.h"
 #include "EDPrivateKey.h"
+#ifdef WITH_FALCON
+#include "FalconPrivateKey.h"
+#endif
 #include "DHPublicKey.h"
 #include "DHPrivateKey.h"
 #include "GOSTPublicKey.h"
@@ -501,6 +504,9 @@ private:
 	CK_RV getECPublicKey(ECPublicKey* publicKey, Token* token, OSObject* key);
 	CK_RV getEDPrivateKey(EDPrivateKey* privateKey, Token* token, OSObject* key);
 	CK_RV getEDPublicKey(EDPublicKey* publicKey, Token* token, OSObject* key);
+#ifdef WITH_FALCON
+	CK_RV getFalconPrivateKey(FalconPrivateKey* privateKey, Token* token, OSObject* key);
+#endif
 	CK_RV getDHPrivateKey(DHPrivateKey* privateKey, Token* token, OSObject* key);
 	CK_RV getDHPublicKey(DHPublicKey* publicKey, DHPrivateKey* privateKey, ByteString& pubParams);
 	CK_RV getECDHPublicKey(ECPublicKey* publicKey, ECPrivateKey* privateKey, ByteString& pubData);
@@ -589,4 +595,3 @@ private:
 	void prepareSupportedMechanisms(std::map<std::string, CK_MECHANISM_TYPE> &t);
 	bool detectFork(void);
 };
-

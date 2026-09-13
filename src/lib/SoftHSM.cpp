@@ -4352,6 +4352,9 @@ CK_RV SoftHSM::AsymSignInit(CK_SESSION_HANDLE hSession, CK_MECHANISM_PTR pMechan
 #ifdef WITH_EDDSA
 	bool isEDDSA = false;
 #endif
+#ifdef WITH_FALCON
+	bool isFalcon = false;
+#endif
 #ifdef WITH_ML_DSA
 	bool isMLDSA = false;
 	MLDSAMechanismParam mldsaParam;
@@ -4618,6 +4621,19 @@ CK_RV SoftHSM::AsymSignInit(CK_SESSION_HANDLE hSession, CK_MECHANISM_PTR pMechan
 			isEDDSA = true;
 			break;
 #endif
+#ifdef WITH_FALCON
+		case CKM_FALCON:
+			if (pMechanism->pParameter != NULL_PTR ||
+				pMechanism->ulParameterLen != 0)
+			{
+				ERROR_MSG("Invalid Falcon parameters");
+				return CKR_ARGUMENTS_BAD;
+			}
+			mechanism = AsymMech::FALCON;
+			bAllowMultiPartOp = false;
+			isFalcon = true;
+			break;
+#endif
 #ifdef WITH_ML_DSA
 		case CKM_ML_DSA:
 			mechanism = AsymMech::MLDSA;
@@ -4751,6 +4767,30 @@ CK_RV SoftHSM::AsymSignInit(CK_SESSION_HANDLE hSession, CK_MECHANISM_PTR pMechan
 		}
 
 		if (getEDPrivateKey((EDPrivateKey*)privateKey, token, key) != CKR_OK)
+		{
+			asymCrypto->recyclePrivateKey(privateKey);
+			CryptoFactory::i()->recycleAsymmetricAlgorithm(asymCrypto);
+			return CKR_GENERAL_ERROR;
+		}
+	}
+#endif
+#ifdef WITH_FALCON
+	else if (isFalcon)
+	{
+		if (keyType != CKK_FALCON)
+			return CKR_KEY_TYPE_INCONSISTENT;
+
+		asymCrypto = CryptoFactory::i()->getAsymmetricAlgorithm(AsymAlgo::FALCON);
+		if (asymCrypto == NULL) return CKR_MECHANISM_INVALID;
+
+		privateKey = asymCrypto->newPrivateKey();
+		if (privateKey == NULL)
+		{
+			CryptoFactory::i()->recycleAsymmetricAlgorithm(asymCrypto);
+			return CKR_HOST_MEMORY;
+		}
+
+		if (getFalconPrivateKey((FalconPrivateKey*)privateKey, token, key) != CKR_OK)
 		{
 			asymCrypto->recyclePrivateKey(privateKey);
 			CryptoFactory::i()->recycleAsymmetricAlgorithm(asymCrypto);
@@ -4965,14 +5005,16 @@ static CK_RV AsymSign(Session* session, CK_BYTE_PTR pData, CK_ULONG ulDataLen, C
 	}
 
 	// Check size
-	if (signature.size() != size)
+	const bool hasVariableSignatureLength = mechanism == AsymMech::FALCON;
+	if (signature.size() == 0 || signature.size() > size ||
+		(!hasVariableSignatureLength && signature.size() != size))
 	{
 		ERROR_MSG("The size of the signature differs from the size of the mechanism");
 		session->resetOp();
 		return CKR_GENERAL_ERROR;
 	}
-	memcpy(pSignature, signature.byte_str(), size);
-	*pulSignatureLen = size;
+	memcpy(pSignature, signature.byte_str(), signature.size());
+	*pulSignatureLen = signature.size();
 
 	session->resetOp();
 	return CKR_OK;
@@ -14616,6 +14658,32 @@ CK_RV SoftHSM::getEDPublicKey(EDPublicKey* publicKey, Token* token, OSObject* ke
 
 	return CKR_OK;
 }
+
+#ifdef WITH_FALCON
+CK_RV SoftHSM::getFalconPrivateKey(FalconPrivateKey* privateKey, Token* token,
+	OSObject* key)
+{
+	if (privateKey == NULL) return CKR_ARGUMENTS_BAD;
+	if (token == NULL) return CKR_ARGUMENTS_BAD;
+	if (key == NULL) return CKR_ARGUMENTS_BAD;
+
+	const bool isKeyPrivate = key->getBooleanValue(CKA_PRIVATE, false);
+	ByteString value;
+	if (isKeyPrivate)
+	{
+		if (!token->decrypt(key->getByteStringValue(CKA_VALUE), value))
+			return CKR_GENERAL_ERROR;
+	}
+	else
+	{
+		value = key->getByteStringValue(CKA_VALUE);
+	}
+
+	privateKey->setValue(value);
+	value.wipe();
+	return CKR_OK;
+}
+#endif
 
 CK_RV SoftHSM::getDHPrivateKey(DHPrivateKey* privateKey, Token* token, OSObject* key)
 {
