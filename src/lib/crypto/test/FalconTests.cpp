@@ -254,6 +254,49 @@ void FalconTests::testSigningWithReconstructedPrivateKey()
 	falcon->recycleParameters(parameters);
 }
 
+void FalconTests::testVerification()
+{
+	FalconParameters* parameters = new FalconParameters();
+	parameters->setParameterSet(FalconParameters::FALCON_512_PARAMETER_SET);
+
+	AsymmetricKeyPair* keyPair = NULL;
+	CPPUNIT_ASSERT(falcon->generateKeyPair(&keyPair, parameters));
+	CPPUNIT_ASSERT(keyPair != NULL);
+
+	ByteString data("0123456789abcdef");
+	ByteString signature;
+	CPPUNIT_ASSERT(falcon->sign(keyPair->getPrivateKey(), data, signature,
+		AsymMech::FALCON));
+	CPPUNIT_ASSERT(falcon->verify(keyPair->getPublicKey(), data, signature,
+		AsymMech::FALCON));
+
+	ByteString alteredData(data);
+	alteredData[0] ^= 1;
+	CPPUNIT_ASSERT(!falcon->verify(keyPair->getPublicKey(), alteredData,
+		signature, AsymMech::FALCON));
+
+	ByteString alteredSignature(signature);
+	alteredSignature[alteredSignature.size() - 1] ^= 1;
+	CPPUNIT_ASSERT(!falcon->verify(keyPair->getPublicKey(), data,
+		alteredSignature, AsymMech::FALCON));
+
+	ByteString emptySignature;
+	CPPUNIT_ASSERT(!falcon->verify(keyPair->getPublicKey(), data,
+		emptySignature, AsymMech::FALCON));
+	ByteString oversizedSignature;
+	oversizedSignature.resize(
+		FalconParameters::FALCON_512_SIGNATURE_LENGTH + 1);
+	CPPUNIT_ASSERT(!falcon->verify(keyPair->getPublicKey(), data,
+		oversizedSignature, AsymMech::FALCON));
+	CPPUNIT_ASSERT(!falcon->verify(NULL, data, signature,
+		AsymMech::FALCON));
+	CPPUNIT_ASSERT(!falcon->verify(keyPair->getPublicKey(), data, signature,
+		AsymMech::Unknown));
+
+	falcon->recycleKeyPair(keyPair);
+	falcon->recycleParameters(parameters);
+}
+
 void FalconTests::testInvalidInputs()
 {
 	FalconParameters* parameters = new FalconParameters();

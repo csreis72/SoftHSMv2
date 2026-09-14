@@ -114,12 +114,69 @@ bool OSSLFalcon::signFinal(ByteString& /*signature*/)
 	return false;
 }
 
-bool OSSLFalcon::verify(PublicKey* /*publicKey*/, const ByteString& /*originalData*/,
-	const ByteString& /*signature*/, const AsymMech::Type /*mechanism*/,
-	const MechanismParam* /*mechanismParam*/)
+bool OSSLFalcon::verify(PublicKey* publicKey, const ByteString& originalData,
+	const ByteString& signature, const AsymMech::Type mechanism,
+	const MechanismParam* mechanismParam)
 {
-	ERROR_MSG("Falcon verification is not supported yet");
-	return false;
+	if (mechanism != AsymMech::FALCON)
+	{
+		ERROR_MSG("Invalid mechanism supplied (%i)", mechanism);
+		return false;
+	}
+	if (mechanismParam != NULL)
+	{
+		ERROR_MSG("Falcon verification does not accept mechanism parameters");
+		return false;
+	}
+	if (publicKey == NULL)
+	{
+		ERROR_MSG("No public key supplied");
+		return false;
+	}
+	if (!publicKey->isOfType(OSSLFalconPublicKey::type))
+	{
+		ERROR_MSG("Invalid key type supplied");
+		return false;
+	}
+
+	OSSLFalconPublicKey* falconKey =
+		static_cast<OSSLFalconPublicKey*>(publicKey);
+	if (signature.size() == 0 ||
+		signature.size() > falconKey->getOutputLength())
+	{
+		ERROR_MSG("Invalid Falcon signature length");
+		return false;
+	}
+
+	EVP_PKEY* pkey = falconKey->getOSSLKey();
+	if (pkey == NULL)
+	{
+		ERROR_MSG("Could not get the OpenSSL Falcon public key");
+		return false;
+	}
+
+	EVP_MD_CTX* context = EVP_MD_CTX_new();
+	if (context == NULL)
+	{
+		ERROR_MSG("Falcon verification context allocation failed");
+		return false;
+	}
+	if (EVP_DigestVerifyInit(context, NULL, NULL, NULL, pkey) <= 0)
+	{
+		ERROR_MSG("Falcon verification initialization failed (0x%08lX)",
+			ERR_get_error());
+		EVP_MD_CTX_free(context);
+		return false;
+	}
+
+	const int result = EVP_DigestVerify(context, signature.const_byte_str(),
+		signature.size(), originalData.const_byte_str(), originalData.size());
+	if (result < 0)
+	{
+		ERROR_MSG("Falcon verification failed (0x%08lX)", ERR_get_error());
+	}
+	EVP_MD_CTX_free(context);
+	return result == 1;
 }
 
 bool OSSLFalcon::verifyInit(PublicKey* /*publicKey*/,
