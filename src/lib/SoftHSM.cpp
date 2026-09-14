@@ -1439,7 +1439,7 @@ CK_RV SoftHSM::C_GetMechanismInfo(CK_SLOT_ID slotID, CK_MECHANISM_TYPE type, CK_
 		case CKM_FALCON:
 			pInfo->ulMinKeySize = falconMinSize;
 			pInfo->ulMaxKeySize = falconMaxSize;
-			pInfo->flags = CKF_SIGN;
+			pInfo->flags = CKF_SIGN | CKF_VERIFY;
 			break;
 #endif
 #ifdef WITH_ML_DSA

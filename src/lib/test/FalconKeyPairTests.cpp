@@ -175,7 +175,7 @@ void FalconKeyPairTests::testMechanism()
 	CPPUNIT_ASSERT(rv == CKR_OK);
 	CPPUNIT_ASSERT(mechanismInfo.ulMinKeySize == FALCON_512_PUBLIC_KEY_LENGTH);
 	CPPUNIT_ASSERT(mechanismInfo.ulMaxKeySize == FALCON_512_PUBLIC_KEY_LENGTH);
-	CPPUNIT_ASSERT(mechanismInfo.flags == CKF_SIGN);
+	CPPUNIT_ASSERT(mechanismInfo.flags == (CKF_SIGN | CKF_VERIFY));
 }
 
 void FalconKeyPairTests::testGenerateKeyPair()
