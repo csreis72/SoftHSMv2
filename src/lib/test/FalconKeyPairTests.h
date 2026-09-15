@@ -20,6 +20,8 @@ class FalconKeyPairTests : public TestsBase
 	CPPUNIT_TEST(testTokenKeyPairPersistence);
 	CPPUNIT_TEST(testSign);
 	CPPUNIT_TEST(testSignErrors);
+	CPPUNIT_TEST(testVerify);
+	CPPUNIT_TEST(testVerifyErrors);
 	CPPUNIT_TEST(testInvalidTemplates);
 	CPPUNIT_TEST(testRollback);
 #endif
@@ -32,6 +34,8 @@ public:
 	void testTokenKeyPairPersistence();
 	void testSign();
 	void testSignErrors();
+	void testVerify();
+	void testVerifyErrors();
 	void testInvalidTemplates();
 	void testRollback();
 #endif
@@ -42,7 +46,7 @@ protected:
 	CK_RV generateFalconKeyPair(CK_SESSION_HANDLE hSession,
 		CK_BBOOL token, const char* label, CK_BYTE id,
 		CK_OBJECT_HANDLE& hPublicKey, CK_OBJECT_HANDLE& hPrivateKey,
-		CK_BBOOL canSign = CK_TRUE);
+		CK_BBOOL canSign = CK_TRUE, CK_BBOOL canVerify = CK_TRUE);
 	CK_OBJECT_HANDLE findObject(CK_SESSION_HANDLE hSession,
 		CK_OBJECT_CLASS objectClass, const char* label);
 #endif

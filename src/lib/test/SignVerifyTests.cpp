@@ -1479,6 +1479,15 @@ void SignVerifyTests::testVerifyInitWrongKeyType()
 	}
 #endif
 
+#ifdef WITH_FALCON
+	// Falcon mechanism with RSA key
+	{
+		CK_MECHANISM mechanism = { CKM_FALCON, NULL_PTR, 0 };
+		rv = CRYPTOKI_F_PTR( C_VerifyInit(hSession, &mechanism, hRsaPub) );
+		CPPUNIT_ASSERT(rv == CKR_KEY_TYPE_INCONSISTENT);
+	}
+#endif
+
 	C_Logout(hSession);
 	C_CloseSession(hSession);
 }

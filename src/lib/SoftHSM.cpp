@@ -5484,6 +5484,9 @@ CK_RV SoftHSM::AsymVerifyInit(CK_SESSION_HANDLE hSession, CK_MECHANISM_PTR pMech
 #ifdef WITH_EDDSA
 	bool isEDDSA = false;
 #endif
+#ifdef WITH_FALCON
+	bool isFalcon = false;
+#endif
 #ifdef WITH_ML_DSA
 	bool isMLDSA = false;
 	MLDSAMechanismParam mldsaParam;
@@ -5749,6 +5752,19 @@ CK_RV SoftHSM::AsymVerifyInit(CK_SESSION_HANDLE hSession, CK_MECHANISM_PTR pMech
 			isEDDSA = true;
 			break;
 #endif
+#ifdef WITH_FALCON
+		case CKM_FALCON:
+			if (pMechanism->pParameter != NULL_PTR ||
+				pMechanism->ulParameterLen != 0)
+			{
+				ERROR_MSG("Invalid Falcon parameters");
+				return CKR_ARGUMENTS_BAD;
+			}
+			mechanism = AsymMech::FALCON;
+			bAllowMultiPartOp = false;
+			isFalcon = true;
+			break;
+#endif
 #ifdef WITH_ML_DSA
 		case CKM_ML_DSA:
 			mechanism = AsymMech::MLDSA;
@@ -5882,6 +5898,30 @@ CK_RV SoftHSM::AsymVerifyInit(CK_SESSION_HANDLE hSession, CK_MECHANISM_PTR pMech
 		}
 
 		if (getEDPublicKey((EDPublicKey*)publicKey, token, key) != CKR_OK)
+		{
+			asymCrypto->recyclePublicKey(publicKey);
+			CryptoFactory::i()->recycleAsymmetricAlgorithm(asymCrypto);
+			return CKR_GENERAL_ERROR;
+		}
+	}
+#endif
+#ifdef WITH_FALCON
+	else if (isFalcon)
+	{
+		if (keyType != CKK_FALCON)
+			return CKR_KEY_TYPE_INCONSISTENT;
+
+		asymCrypto = CryptoFactory::i()->getAsymmetricAlgorithm(AsymAlgo::FALCON);
+		if (asymCrypto == NULL) return CKR_MECHANISM_INVALID;
+
+		publicKey = asymCrypto->newPublicKey();
+		if (publicKey == NULL)
+		{
+			CryptoFactory::i()->recycleAsymmetricAlgorithm(asymCrypto);
+			return CKR_HOST_MEMORY;
+		}
+
+		if (getFalconPublicKey((FalconPublicKey*)publicKey, token, key) != CKR_OK)
 		{
 			asymCrypto->recyclePublicKey(publicKey);
 			CryptoFactory::i()->recycleAsymmetricAlgorithm(asymCrypto);
@@ -6032,7 +6072,9 @@ static CK_RV AsymVerify(Session* session, CK_BYTE_PTR pData, CK_ULONG ulDataLen,
 	CK_ULONG size = publicKey->getOutputLength();
 
 	// Check buffer size
-	if (ulSignatureLen != size)
+	const bool isFalcon = mechanism == AsymMech::FALCON;
+	if ((isFalcon && (ulSignatureLen == 0 || ulSignatureLen > size)) ||
+		(!isFalcon && ulSignatureLen != size))
 	{
 		ERROR_MSG("The size of the signature differs from the size of the mechanism");
 		DEBUG_MSG("size: %lu, ulSignatureLen: %lu", size, ulSignatureLen);
