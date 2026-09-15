@@ -50,6 +50,7 @@
 #include "EDPublicKey.h"
 #include "EDPrivateKey.h"
 #ifdef WITH_FALCON
+#include "FalconPublicKey.h"
 #include "FalconPrivateKey.h"
 #endif
 #include "DHPublicKey.h"
@@ -506,6 +507,7 @@ private:
 	CK_RV getEDPublicKey(EDPublicKey* publicKey, Token* token, OSObject* key);
 #ifdef WITH_FALCON
 	CK_RV getFalconPrivateKey(FalconPrivateKey* privateKey, Token* token, OSObject* key);
+	CK_RV getFalconPublicKey(FalconPublicKey* publicKey, Token* token, OSObject* key);
 #endif
 	CK_RV getDHPrivateKey(DHPrivateKey* privateKey, Token* token, OSObject* key);
 	CK_RV getDHPublicKey(DHPublicKey* publicKey, DHPrivateKey* privateKey, ByteString& pubParams);

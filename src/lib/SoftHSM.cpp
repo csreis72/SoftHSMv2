@@ -14683,6 +14683,30 @@ CK_RV SoftHSM::getFalconPrivateKey(FalconPrivateKey* privateKey, Token* token,
 	value.wipe();
 	return CKR_OK;
 }
+
+CK_RV SoftHSM::getFalconPublicKey(FalconPublicKey* publicKey, Token* token,
+	OSObject* key)
+{
+	if (publicKey == NULL) return CKR_ARGUMENTS_BAD;
+	if (token == NULL) return CKR_ARGUMENTS_BAD;
+	if (key == NULL) return CKR_ARGUMENTS_BAD;
+
+	const bool isKeyPrivate = key->getBooleanValue(CKA_PRIVATE, false);
+	ByteString value;
+	if (isKeyPrivate)
+	{
+		if (!token->decrypt(key->getByteStringValue(CKA_VALUE), value))
+			return CKR_GENERAL_ERROR;
+	}
+	else
+	{
+		value = key->getByteStringValue(CKA_VALUE);
+	}
+
+	publicKey->setValue(value);
+	value.wipe();
+	return CKR_OK;
+}
 #endif
 
 CK_RV SoftHSM::getDHPrivateKey(DHPrivateKey* privateKey, Token* token, OSObject* key)
