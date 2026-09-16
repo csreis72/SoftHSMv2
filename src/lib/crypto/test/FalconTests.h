@@ -24,6 +24,7 @@ class FalconTests : public CppUnit::TestFixture
 	CPPUNIT_TEST(testSigning);
 	CPPUNIT_TEST(testSigningWithReconstructedPrivateKey);
 	CPPUNIT_TEST(testVerification);
+	CPPUNIT_TEST(testSignVerifyKnownVector);
 	CPPUNIT_TEST(testInvalidInputs);
 	CPPUNIT_TEST_SUITE_END();
 
@@ -39,6 +40,7 @@ public:
 	void testSigning();
 	void testSigningWithReconstructedPrivateKey();
 	void testVerification();
+	void testSignVerifyKnownVector();
 	void testInvalidInputs();
 
 private:

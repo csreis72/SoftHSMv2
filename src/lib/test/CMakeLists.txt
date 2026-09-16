@@ -22,7 +22,6 @@ set(SOURCES p11test.cpp
             ObjectTests.cpp
             DeriveTests.cpp
             EncapDecapTests.cpp
-            FalconKeyPairTests.cpp
             SignVerifyTests.cpp
             AsymEncryptDecryptTests.cpp
             AsymWrapUnwrapTests.cpp

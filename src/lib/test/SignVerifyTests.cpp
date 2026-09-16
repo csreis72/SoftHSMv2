@@ -271,6 +271,50 @@ CK_RV SignVerifyTests::generateMLDSA(CK_ULONG parameterSet, CK_SESSION_HANDLE hS
 }
 #endif
 
+#ifdef WITH_FALCON
+CK_RV SignVerifyTests::generateFalcon(CK_SESSION_HANDLE hSession, CK_BBOOL bTokenPuk, CK_BBOOL bPrivatePuk, CK_BBOOL bTokenPrk, CK_BBOOL bPrivatePrk, CK_OBJECT_HANDLE &hPuk, CK_OBJECT_HANDLE &hPrk)
+{
+	CK_MECHANISM mechanism = { CKM_FALCON_KEY_PAIR_GEN, NULL_PTR, 0 };
+	CK_KEY_TYPE keyType = CKK_FALCON;
+	CK_ULONG parameterSet = 1UL;
+	CK_BYTE label[] = { 0x12, 0x34 }; // dummy
+	CK_BYTE id[] = { 123 }; // dummy
+	CK_BBOOL bFalse = CK_FALSE;
+	CK_BBOOL bTrue = CK_TRUE;
+
+	CK_ATTRIBUTE pukAttribs[] = {
+		{ CKA_PARAMETER_SET, &parameterSet, sizeof(parameterSet) },
+		{ CKA_LABEL, &label[0], sizeof(label) },
+		{ CKA_ID, &id[0], sizeof(id) },
+		{ CKA_KEY_TYPE, &keyType, sizeof(keyType) },
+		{ CKA_VERIFY, &bTrue, sizeof(bTrue) },
+		{ CKA_ENCRYPT, &bFalse, sizeof(bFalse) },
+		{ CKA_WRAP, &bFalse, sizeof(bFalse) },
+		{ CKA_TOKEN, &bTokenPuk, sizeof(bTokenPuk) },
+		{ CKA_PRIVATE, &bPrivatePuk, sizeof(bPrivatePuk) }
+	};
+	CK_ATTRIBUTE prkAttribs[] = {
+		{ CKA_LABEL, &label[0], sizeof(label) },
+		{ CKA_ID, &id[0], sizeof(id) },
+		{ CKA_KEY_TYPE, &keyType, sizeof(keyType) },
+		{ CKA_SIGN, &bTrue, sizeof(bTrue) },
+		{ CKA_DECRYPT, &bFalse, sizeof(bFalse) },
+		{ CKA_UNWRAP, &bFalse, sizeof(bFalse) },
+		{ CKA_SENSITIVE, &bTrue, sizeof(bTrue) },
+		{ CKA_TOKEN, &bTokenPrk, sizeof(bTokenPrk) },
+		{ CKA_PRIVATE, &bPrivatePrk, sizeof(bPrivatePrk) },
+		{ CKA_EXTRACTABLE, &bFalse, sizeof(bFalse) }
+	};
+
+	hPuk = CK_INVALID_HANDLE;
+	hPrk = CK_INVALID_HANDLE;
+	return CRYPTOKI_F_PTR( C_GenerateKeyPair(hSession, &mechanism,
+							 pukAttribs, sizeof(pukAttribs)/sizeof(CK_ATTRIBUTE),
+							 prkAttribs, sizeof(prkAttribs)/sizeof(CK_ATTRIBUTE),
+							 &hPuk, &hPrk) );
+}
+#endif
+
 void SignVerifyTests::signVerifySingle(CK_MECHANISM_TYPE mechanismType, CK_SESSION_HANDLE hSession, CK_OBJECT_HANDLE hPublicKey, CK_OBJECT_HANDLE hPrivateKey, CK_VOID_PTR param /* = NULL_PTR */, CK_ULONG paramLen /* = 0 */)
 {
 	CK_RV rv;
@@ -934,6 +978,51 @@ void SignVerifyTests::testMLDSASignVerify(CK_ULONG parameterSet)
 	signVerifySingle(CKM_ML_DSA, hSessionRO, hPuk,hPrk, &params[3], sizeof(params[3]));
 	signVerifySingle(CKM_ML_DSA, hSessionRO, hPuk,hPrk, &params[4], sizeof(params[4]));
 	signVerifySingle(CKM_ML_DSA, hSessionRO, hPuk,hPrk, &params[5], sizeof(params[5]));
+}
+#endif
+
+#ifdef WITH_FALCON
+void SignVerifyTests::testFalconSignVerify()
+{
+	CK_RV rv;
+	CK_SESSION_HANDLE hSessionRO;
+	CK_SESSION_HANDLE hSessionRW;
+
+	CRYPTOKI_F_PTR( C_Finalize(NULL_PTR) );
+
+	rv = CRYPTOKI_F_PTR( C_OpenSession(m_initializedTokenSlotID, CKF_SERIAL_SESSION, NULL_PTR, NULL_PTR, &hSessionRO) );
+	CPPUNIT_ASSERT(rv == CKR_CRYPTOKI_NOT_INITIALIZED);
+
+	rv = CRYPTOKI_F_PTR( C_Initialize(NULL_PTR) );
+	CPPUNIT_ASSERT(rv == CKR_OK);
+
+	rv = CRYPTOKI_F_PTR( C_OpenSession(m_initializedTokenSlotID, CKF_SERIAL_SESSION, NULL_PTR, NULL_PTR, &hSessionRO) );
+	CPPUNIT_ASSERT(rv == CKR_OK);
+
+	rv = CRYPTOKI_F_PTR( C_OpenSession(m_initializedTokenSlotID, CKF_SERIAL_SESSION | CKF_RW_SESSION, NULL_PTR, NULL_PTR, &hSessionRW) );
+	CPPUNIT_ASSERT(rv == CKR_OK);
+
+	rv = CRYPTOKI_F_PTR( C_Login(hSessionRO,CKU_USER,m_userPin1,m_userPin1Length) );
+	CPPUNIT_ASSERT(rv == CKR_OK);
+
+	CK_OBJECT_HANDLE hPuk = CK_INVALID_HANDLE;
+	CK_OBJECT_HANDLE hPrk = CK_INVALID_HANDLE;
+
+	rv = generateFalcon(hSessionRW,IN_SESSION,IS_PUBLIC,IN_SESSION,IS_PUBLIC,hPuk,hPrk);
+	CPPUNIT_ASSERT(rv == CKR_OK);
+	signVerifySingle(CKM_FALCON, hSessionRO, hPuk,hPrk);
+
+	rv = generateFalcon(hSessionRW,IN_SESSION,IS_PRIVATE,IN_SESSION,IS_PRIVATE,hPuk,hPrk);
+	CPPUNIT_ASSERT(rv == CKR_OK);
+	signVerifySingle(CKM_FALCON, hSessionRO, hPuk,hPrk);
+
+	rv = generateFalcon(hSessionRW,ON_TOKEN,IS_PUBLIC,ON_TOKEN,IS_PUBLIC,hPuk,hPrk);
+	CPPUNIT_ASSERT(rv == CKR_OK);
+	signVerifySingle(CKM_FALCON, hSessionRO, hPuk,hPrk);
+
+	rv = generateFalcon(hSessionRW,ON_TOKEN,IS_PRIVATE,ON_TOKEN,IS_PRIVATE,hPuk,hPrk);
+	CPPUNIT_ASSERT(rv == CKR_OK);
+	signVerifySingle(CKM_FALCON, hSessionRO, hPuk,hPrk);
 }
 #endif
 
