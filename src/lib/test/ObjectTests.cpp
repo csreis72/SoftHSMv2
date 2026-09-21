@@ -1582,6 +1582,34 @@ void ObjectTests::testGenerateKeys()
 	CPPUNIT_ASSERT_EQUAL(CKR_OK, rv);
 	rv = generateRsaKeyPair(hSessionRW,ON_TOKEN,IS_PRIVATE,ON_TOKEN,IS_PRIVATE,hPuk,hPrk);
 	CPPUNIT_ASSERT_EQUAL(CKR_OK, rv);
+
+#ifdef WITH_FALCON
+	CK_MECHANISM falconMechanism = {
+		CKM_FALCON_KEY_PAIR_GEN, NULL_PTR, 0
+	};
+	hPuk = CK_INVALID_HANDLE;
+	hPrk = CK_INVALID_HANDLE;
+	rv = CRYPTOKI_F_PTR(C_GenerateKeyPair(hSessionRW, &falconMechanism,
+		NULL_PTR, 0, NULL_PTR, 0, &hPuk, &hPrk));
+	CPPUNIT_ASSERT_EQUAL(CKR_TEMPLATE_INCOMPLETE, rv);
+	CPPUNIT_ASSERT_EQUAL(CK_INVALID_HANDLE, hPuk);
+	CPPUNIT_ASSERT_EQUAL(CK_INVALID_HANDLE, hPrk);
+
+	CK_ULONG unsupportedParameterSet = CKP_FALCON_1024 + 1;
+	CK_ATTRIBUTE falconPublicKeyTemplate[] = {
+		{ CKA_PARAMETER_SET, &unsupportedParameterSet,
+			sizeof(unsupportedParameterSet) }
+	};
+	hPuk = CK_INVALID_HANDLE;
+	hPrk = CK_INVALID_HANDLE;
+	rv = CRYPTOKI_F_PTR(C_GenerateKeyPair(hSessionRW, &falconMechanism,
+		falconPublicKeyTemplate,
+		sizeof(falconPublicKeyTemplate) / sizeof(CK_ATTRIBUTE),
+		NULL_PTR, 0, &hPuk, &hPrk));
+	CPPUNIT_ASSERT_EQUAL(CKR_PARAMETER_SET_NOT_SUPPORTED, rv);
+	CPPUNIT_ASSERT_EQUAL(CK_INVALID_HANDLE, hPuk);
+	CPPUNIT_ASSERT_EQUAL(CK_INVALID_HANDLE, hPrk);
+#endif
 }
 
 void ObjectTests::testCreateCertificates()
