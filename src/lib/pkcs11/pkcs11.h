@@ -410,6 +410,7 @@ extern "C" {
 #define sequence_number ulSequenceNumber
 
 #define ck_hedge_type_t CK_HEDGE_TYPE
+#define ck_falcon_parameter_set_type_t CK_FALCON_PARAMETER_SET_TYPE
 #define ck_ml_dsa_parameter_set_type_t CK_ML_DSA_PARAMETER_SET_TYPE
 #define ck_ml_kem_parameter_set_type_t CK_ML_KEM_PARAMETER_SET_TYPE
 #define ck_session_validation_flags_type_t CK_SESSION_VALIDATION_FLAGS_TYPE
@@ -1343,6 +1344,10 @@ extern "C" {
 #define CKP_ML_DSA_65                           (2UL)
 #define CKP_ML_DSA_87                           (3UL)
 
+/* CK_FALCON_PARAMETER_SET_TYPE */
+#define CKP_FALCON_512                          (1UL)
+#define CKP_FALCON_1024                         (2UL)
+
 /* CK_ML_KEM_PARAMETER_SET_TYPE */
 #define CKP_ML_KEM_512                          (1UL)
 #define CKP_ML_KEM_768                          (2UL)
@@ -1594,6 +1599,7 @@ typedef unsigned long ck_x3dh_kdf_type_t;
 typedef unsigned long ck_x9_42_dh_kdf_type_t;
 typedef unsigned long ck_xeddsa_hash_type_t;
 typedef unsigned long ck_hedge_type_t;
+typedef unsigned long ck_falcon_parameter_set_type_t;
 typedef unsigned long ck_ml_dsa_parameter_set_type_t;
 typedef unsigned long ck_ml_kem_parameter_set_type_t;
 typedef unsigned long ck_session_validation_flags_type_t;

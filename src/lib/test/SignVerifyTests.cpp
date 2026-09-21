@@ -276,7 +276,7 @@ CK_RV SignVerifyTests::generateFalcon(CK_SESSION_HANDLE hSession, CK_BBOOL bToke
 {
 	CK_MECHANISM mechanism = { CKM_FALCON_KEY_PAIR_GEN, NULL_PTR, 0 };
 	CK_KEY_TYPE keyType = CKK_FALCON;
-	CK_ULONG parameterSet = 1UL;
+	CK_ULONG parameterSet = CKP_FALCON_512;
 	CK_BYTE label[] = { 0x12, 0x34 }; // dummy
 	CK_BYTE id[] = { 123 }; // dummy
 	CK_BBOOL bFalse = CK_FALSE;

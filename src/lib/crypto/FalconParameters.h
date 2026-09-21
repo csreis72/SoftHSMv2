@@ -37,14 +37,19 @@ public:
 	virtual ByteString serialise() const;
 	virtual bool deserialise(ByteString& serialised);
 
-	// Only Falcon-512 is supported for now. Other parameter sets are US04.
-	static const unsigned long FALCON_512_PARAMETER_SET = 0x00000001UL;
+	// Falcon values for CKA_PARAMETER_SET.
+	static const unsigned long FALCON_512_PARAMETER_SET = CKP_FALCON_512;
+	static const unsigned long FALCON_1024_PARAMETER_SET = CKP_FALCON_1024;
 
 	// Raw key component and maximum signature sizes exposed by OQS Provider.
 	static const unsigned long FALCON_512_PRIV_LENGTH = 1281;
 	static const unsigned long FALCON_512_PUB_LENGTH = 897;
 	static const unsigned long FALCON_512_SIGNATURE_LENGTH = 752;
 	static const unsigned long FALCON_512_SECURITY_BITS = 128;
+	static const unsigned long FALCON_1024_PRIV_LENGTH = 2305;
+	static const unsigned long FALCON_1024_PUB_LENGTH = 1793;
+	static const unsigned long FALCON_1024_SIGNATURE_LENGTH = 1462;
+	static const unsigned long FALCON_1024_SECURITY_BITS = 256;
 
 private:
 	unsigned long parameterSet;

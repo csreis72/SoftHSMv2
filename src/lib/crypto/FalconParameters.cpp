@@ -52,7 +52,8 @@ bool FalconParameters::deserialise(ByteString& serialised)
 	}
 
 	const unsigned long parameter = serialised.long_val();
-	if (parameter != FALCON_512_PARAMETER_SET)
+	if (parameter != FALCON_512_PARAMETER_SET &&
+		parameter != FALCON_1024_PARAMETER_SET)
 	{
 		return false;
 	}

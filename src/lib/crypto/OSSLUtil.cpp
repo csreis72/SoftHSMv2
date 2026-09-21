@@ -68,7 +68,8 @@ static const std::map<unsigned long, const char*> mlkemAlgNameFromParameterSet {
 
 #ifdef WITH_FALCON
 static const std::map<unsigned long, const char*> falconAlgNameFromParameterSet {
-	{FalconParameters::FALCON_512_PARAMETER_SET, "falcon512"}
+	{FalconParameters::FALCON_512_PARAMETER_SET, "falcon512"},
+	{FalconParameters::FALCON_1024_PARAMETER_SET, "falcon1024"}
 };
 #endif
 

@@ -10,6 +10,7 @@
  *****************************************************************************/
 
 #include <cstdio>
+#include <cstring>
 #include <cppunit/extensions/HelperMacros.h>
 #include "FalconTests.h"
 #include "AsymmetricKeyPair.h"
@@ -20,6 +21,7 @@
 #include "FalconPrivateKey.h"
 #include "FalconPublicKey.h"
 #include "OSSLFalconPublicKey.h"
+#include "OSSLUtil.h"
 #include <openssl/evp.h>
 
 CPPUNIT_TEST_SUITE_REGISTRATION(FalconTests);
@@ -102,6 +104,26 @@ void FalconTests::testKeyGeneration()
 
 void FalconTests::testSerialisation()
 {
+	FalconParameters* falcon1024Parameters = new FalconParameters();
+	falcon1024Parameters->setParameterSet(
+		FalconParameters::FALCON_1024_PARAMETER_SET);
+	ByteString serialisedFalcon1024Parameters =
+		falcon1024Parameters->serialise();
+	AsymmetricParameters* reconstructedFalcon1024Parameters = NULL;
+	CPPUNIT_ASSERT(falcon->reconstructParameters(
+		&reconstructedFalcon1024Parameters,
+		serialisedFalcon1024Parameters));
+	CPPUNIT_ASSERT(static_cast<FalconParameters*>(
+		reconstructedFalcon1024Parameters)->getParameterSet() ==
+		FalconParameters::FALCON_1024_PARAMETER_SET);
+	CPPUNIT_ASSERT(std::strcmp(OSSL::falconParameterSet2Name(
+		FalconParameters::FALCON_512_PARAMETER_SET), "falcon512") == 0);
+	CPPUNIT_ASSERT(std::strcmp(OSSL::falconParameterSet2Name(
+		FalconParameters::FALCON_1024_PARAMETER_SET), "falcon1024") == 0);
+	CPPUNIT_ASSERT(OSSL::falconParameterSet2Name(3UL) == NULL);
+	falcon->recycleParameters(reconstructedFalcon1024Parameters);
+	falcon->recycleParameters(falcon1024Parameters);
+
 	FalconParameters* parameters = new FalconParameters();
 	parameters->setParameterSet(FalconParameters::FALCON_512_PARAMETER_SET);
 	ByteString serialisedParameters = parameters->serialise();
@@ -357,7 +379,7 @@ void FalconTests::testInvalidInputs()
 	CPPUNIT_ASSERT(!falcon->generateKeyPair(&keyPair, NULL));
 
 	FalconParameters* unsupportedParameters = new FalconParameters();
-	unsupportedParameters->setParameterSet(2UL);
+	unsupportedParameters->setParameterSet(3UL);
 	CPPUNIT_ASSERT(!falcon->generateKeyPair(&keyPair, unsupportedParameters));
 	CPPUNIT_ASSERT(keyPair == NULL);
 
@@ -366,7 +388,7 @@ void FalconTests::testInvalidInputs()
 	CPPUNIT_ASSERT(!falcon->reconstructParameters(&reconstructedParameters,
 		malformedParameters));
 	CPPUNIT_ASSERT(reconstructedParameters == NULL);
-	ByteString unsupportedSerialisedParameters(2UL);
+	ByteString unsupportedSerialisedParameters(3UL);
 	CPPUNIT_ASSERT(!falcon->reconstructParameters(&reconstructedParameters,
 		unsupportedSerialisedParameters));
 	CPPUNIT_ASSERT(reconstructedParameters == NULL);
