@@ -32,9 +32,12 @@ unsigned long FalconPrivateKey::getBitLength() const
 // Get the parameter set
 unsigned long FalconPrivateKey::getParameterSet() const
 {
-	if (value.size() == FalconParameters::FALCON_512_PRIV_LENGTH)
+	switch (value.size())
 	{
-		return FalconParameters::FALCON_512_PARAMETER_SET;
+		case FalconParameters::FALCON_512_PRIV_LENGTH:
+			return FalconParameters::FALCON_512_PARAMETER_SET;
+		case FalconParameters::FALCON_1024_PRIV_LENGTH:
+			return FalconParameters::FALCON_1024_PARAMETER_SET;
 	}
 	return 0UL;
 }
@@ -42,9 +45,12 @@ unsigned long FalconPrivateKey::getParameterSet() const
 // Get the maximum signature length
 unsigned long FalconPrivateKey::getOutputLength() const
 {
-	if (value.size() == FalconParameters::FALCON_512_PRIV_LENGTH)
+	switch (value.size())
 	{
-		return FalconParameters::FALCON_512_SIGNATURE_LENGTH;
+		case FalconParameters::FALCON_512_PRIV_LENGTH:
+			return FalconParameters::FALCON_512_SIGNATURE_LENGTH;
+		case FalconParameters::FALCON_1024_PRIV_LENGTH:
+			return FalconParameters::FALCON_1024_SIGNATURE_LENGTH;
 	}
 	return 0UL;
 }
@@ -68,7 +74,8 @@ ByteString FalconPrivateKey::serialise() const
 bool FalconPrivateKey::deserialise(ByteString& serialised)
 {
 	ByteString deserialisedValue = ByteString::chainDeserialise(serialised);
-	if (deserialisedValue.size() != FalconParameters::FALCON_512_PRIV_LENGTH)
+	if (deserialisedValue.size() != FalconParameters::FALCON_512_PRIV_LENGTH &&
+		deserialisedValue.size() != FalconParameters::FALCON_1024_PRIV_LENGTH)
 	{
 		return false;
 	}

@@ -11228,7 +11228,8 @@ CK_RV SoftHSM::generateFalcon
 		INFO_MSG("Missing CKA_PARAMETER_SET in pPublicKeyTemplate");
 		return CKR_TEMPLATE_INCOMPLETE;
 	}
-	if (parameterSet != FalconParameters::FALCON_512_PARAMETER_SET)
+	if (parameterSet != FalconParameters::FALCON_512_PARAMETER_SET &&
+		parameterSet != FalconParameters::FALCON_1024_PARAMETER_SET)
 	{
 		INFO_MSG("Unsupported Falcon parameter set: %lu", (unsigned long)parameterSet);
 		return CKR_PARAMETER_SET_NOT_SUPPORTED;

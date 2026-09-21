@@ -272,11 +272,10 @@ CK_RV SignVerifyTests::generateMLDSA(CK_ULONG parameterSet, CK_SESSION_HANDLE hS
 #endif
 
 #ifdef WITH_FALCON
-CK_RV SignVerifyTests::generateFalcon(CK_SESSION_HANDLE hSession, CK_BBOOL bTokenPuk, CK_BBOOL bPrivatePuk, CK_BBOOL bTokenPrk, CK_BBOOL bPrivatePrk, CK_OBJECT_HANDLE &hPuk, CK_OBJECT_HANDLE &hPrk)
+CK_RV SignVerifyTests::generateFalcon(CK_ULONG parameterSet, CK_SESSION_HANDLE hSession, CK_BBOOL bTokenPuk, CK_BBOOL bPrivatePuk, CK_BBOOL bTokenPrk, CK_BBOOL bPrivatePrk, CK_OBJECT_HANDLE &hPuk, CK_OBJECT_HANDLE &hPrk)
 {
 	CK_MECHANISM mechanism = { CKM_FALCON_KEY_PAIR_GEN, NULL_PTR, 0 };
 	CK_KEY_TYPE keyType = CKK_FALCON;
-	CK_ULONG parameterSet = CKP_FALCON_512;
 	CK_BYTE label[] = { 0x12, 0x34 }; // dummy
 	CK_BYTE id[] = { 123 }; // dummy
 	CK_BBOOL bFalse = CK_FALSE;
@@ -982,7 +981,7 @@ void SignVerifyTests::testMLDSASignVerify(CK_ULONG parameterSet)
 #endif
 
 #ifdef WITH_FALCON
-void SignVerifyTests::testFalconSignVerify()
+void SignVerifyTests::testFalconSignVerify(CK_ULONG parameterSet)
 {
 	CK_RV rv;
 	CK_SESSION_HANDLE hSessionRO;
@@ -1008,19 +1007,19 @@ void SignVerifyTests::testFalconSignVerify()
 	CK_OBJECT_HANDLE hPuk = CK_INVALID_HANDLE;
 	CK_OBJECT_HANDLE hPrk = CK_INVALID_HANDLE;
 
-	rv = generateFalcon(hSessionRW,IN_SESSION,IS_PUBLIC,IN_SESSION,IS_PUBLIC,hPuk,hPrk);
+	rv = generateFalcon(parameterSet,hSessionRW,IN_SESSION,IS_PUBLIC,IN_SESSION,IS_PUBLIC,hPuk,hPrk);
 	CPPUNIT_ASSERT(rv == CKR_OK);
 	signVerifySingle(CKM_FALCON, hSessionRO, hPuk,hPrk);
 
-	rv = generateFalcon(hSessionRW,IN_SESSION,IS_PRIVATE,IN_SESSION,IS_PRIVATE,hPuk,hPrk);
+	rv = generateFalcon(parameterSet,hSessionRW,IN_SESSION,IS_PRIVATE,IN_SESSION,IS_PRIVATE,hPuk,hPrk);
 	CPPUNIT_ASSERT(rv == CKR_OK);
 	signVerifySingle(CKM_FALCON, hSessionRO, hPuk,hPrk);
 
-	rv = generateFalcon(hSessionRW,ON_TOKEN,IS_PUBLIC,ON_TOKEN,IS_PUBLIC,hPuk,hPrk);
+	rv = generateFalcon(parameterSet,hSessionRW,ON_TOKEN,IS_PUBLIC,ON_TOKEN,IS_PUBLIC,hPuk,hPrk);
 	CPPUNIT_ASSERT(rv == CKR_OK);
 	signVerifySingle(CKM_FALCON, hSessionRO, hPuk,hPrk);
 
-	rv = generateFalcon(hSessionRW,ON_TOKEN,IS_PRIVATE,ON_TOKEN,IS_PRIVATE,hPuk,hPrk);
+	rv = generateFalcon(parameterSet,hSessionRW,ON_TOKEN,IS_PRIVATE,ON_TOKEN,IS_PRIVATE,hPuk,hPrk);
 	CPPUNIT_ASSERT(rv == CKR_OK);
 	signVerifySingle(CKM_FALCON, hSessionRO, hPuk,hPrk);
 }

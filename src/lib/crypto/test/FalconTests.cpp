@@ -11,6 +11,7 @@
 
 #include <cstdio>
 #include <cstring>
+#include <vector>
 #include <cppunit/extensions/HelperMacros.h>
 #include "FalconTests.h"
 #include "AsymmetricKeyPair.h"
@@ -28,6 +29,10 @@ CPPUNIT_TEST_SUITE_REGISTRATION(FalconTests);
 
 namespace
 {
+	const std::vector<unsigned long> allParameterSets = {
+		CKP_FALCON_512, CKP_FALCON_1024
+	};
+
 	bool verifyFalconSignature(FalconPublicKey* publicKey,
 		const ByteString& data, const ByteString& signature)
 	{
@@ -66,122 +71,123 @@ void FalconTests::tearDown()
 
 void FalconTests::testKeyGeneration()
 {
-	FalconParameters* parameters = new FalconParameters();
-	parameters->setParameterSet(FalconParameters::FALCON_512_PARAMETER_SET);
+	for (const unsigned long parameterSet : allParameterSets)
+	{
+		const bool isFalcon512 =
+			parameterSet == FalconParameters::FALCON_512_PARAMETER_SET;
+		const unsigned long publicKeyLength = isFalcon512 ?
+			FalconParameters::FALCON_512_PUB_LENGTH :
+			FalconParameters::FALCON_1024_PUB_LENGTH;
+		const unsigned long privateKeyLength = isFalcon512 ?
+			FalconParameters::FALCON_512_PRIV_LENGTH :
+			FalconParameters::FALCON_1024_PRIV_LENGTH;
+		const unsigned long signatureLength = isFalcon512 ?
+			FalconParameters::FALCON_512_SIGNATURE_LENGTH :
+			FalconParameters::FALCON_1024_SIGNATURE_LENGTH;
 
-	AsymmetricKeyPair* keyPair = NULL;
-	CPPUNIT_ASSERT(falcon->generateKeyPair(&keyPair, parameters));
-	CPPUNIT_ASSERT(keyPair != NULL);
+		FalconParameters* parameters = new FalconParameters();
+		parameters->setParameterSet(parameterSet);
 
-	FalconPublicKey* publicKey =
-		static_cast<FalconPublicKey*>(keyPair->getPublicKey());
-	FalconPrivateKey* privateKey =
-		static_cast<FalconPrivateKey*>(keyPair->getPrivateKey());
-	CPPUNIT_ASSERT(publicKey != NULL);
-	CPPUNIT_ASSERT(privateKey != NULL);
-	CPPUNIT_ASSERT(publicKey->isOfType(FalconPublicKey::type));
-	CPPUNIT_ASSERT(privateKey->isOfType(FalconPrivateKey::type));
-	CPPUNIT_ASSERT(publicKey->getParameterSet() ==
-		FalconParameters::FALCON_512_PARAMETER_SET);
-	CPPUNIT_ASSERT(privateKey->getParameterSet() ==
-		FalconParameters::FALCON_512_PARAMETER_SET);
-	CPPUNIT_ASSERT(publicKey->getValue().size() ==
-		FalconParameters::FALCON_512_PUB_LENGTH);
-	CPPUNIT_ASSERT(privateKey->getValue().size() ==
-		FalconParameters::FALCON_512_PRIV_LENGTH);
-	CPPUNIT_ASSERT(publicKey->getOutputLength() ==
-		FalconParameters::FALCON_512_SIGNATURE_LENGTH);
-	CPPUNIT_ASSERT(privateKey->getOutputLength() ==
-		FalconParameters::FALCON_512_SIGNATURE_LENGTH);
+		AsymmetricKeyPair* keyPair = NULL;
+		CPPUNIT_ASSERT(falcon->generateKeyPair(&keyPair, parameters));
+		CPPUNIT_ASSERT(keyPair != NULL);
+
+		FalconPublicKey* publicKey =
+			static_cast<FalconPublicKey*>(keyPair->getPublicKey());
+		FalconPrivateKey* privateKey =
+			static_cast<FalconPrivateKey*>(keyPair->getPrivateKey());
+		CPPUNIT_ASSERT(publicKey != NULL);
+		CPPUNIT_ASSERT(privateKey != NULL);
+		CPPUNIT_ASSERT(publicKey->isOfType(FalconPublicKey::type));
+		CPPUNIT_ASSERT(privateKey->isOfType(FalconPrivateKey::type));
+		CPPUNIT_ASSERT(publicKey->getParameterSet() == parameterSet);
+		CPPUNIT_ASSERT(privateKey->getParameterSet() == parameterSet);
+		CPPUNIT_ASSERT(publicKey->getValue().size() == publicKeyLength);
+		CPPUNIT_ASSERT(privateKey->getValue().size() == privateKeyLength);
+		CPPUNIT_ASSERT(publicKey->getOutputLength() == signatureLength);
+		CPPUNIT_ASSERT(privateKey->getOutputLength() == signatureLength);
+
+		falcon->recycleKeyPair(keyPair);
+		falcon->recycleParameters(parameters);
+	}
+
 	CPPUNIT_ASSERT(falcon->getMinKeySize() ==
 		FalconParameters::FALCON_512_PUB_LENGTH);
 	CPPUNIT_ASSERT(falcon->getMaxKeySize() ==
-		FalconParameters::FALCON_512_PUB_LENGTH);
-
-	falcon->recycleKeyPair(keyPair);
-	falcon->recycleParameters(parameters);
+		FalconParameters::FALCON_1024_PUB_LENGTH);
 }
 
 void FalconTests::testSerialisation()
 {
-	FalconParameters* falcon1024Parameters = new FalconParameters();
-	falcon1024Parameters->setParameterSet(
-		FalconParameters::FALCON_1024_PARAMETER_SET);
-	ByteString serialisedFalcon1024Parameters =
-		falcon1024Parameters->serialise();
-	AsymmetricParameters* reconstructedFalcon1024Parameters = NULL;
-	CPPUNIT_ASSERT(falcon->reconstructParameters(
-		&reconstructedFalcon1024Parameters,
-		serialisedFalcon1024Parameters));
-	CPPUNIT_ASSERT(static_cast<FalconParameters*>(
-		reconstructedFalcon1024Parameters)->getParameterSet() ==
-		FalconParameters::FALCON_1024_PARAMETER_SET);
 	CPPUNIT_ASSERT(std::strcmp(OSSL::falconParameterSet2Name(
 		FalconParameters::FALCON_512_PARAMETER_SET), "falcon512") == 0);
 	CPPUNIT_ASSERT(std::strcmp(OSSL::falconParameterSet2Name(
 		FalconParameters::FALCON_1024_PARAMETER_SET), "falcon1024") == 0);
 	CPPUNIT_ASSERT(OSSL::falconParameterSet2Name(3UL) == NULL);
-	falcon->recycleParameters(reconstructedFalcon1024Parameters);
-	falcon->recycleParameters(falcon1024Parameters);
 
-	FalconParameters* parameters = new FalconParameters();
-	parameters->setParameterSet(FalconParameters::FALCON_512_PARAMETER_SET);
-	ByteString serialisedParameters = parameters->serialise();
+	for (const unsigned long parameterSet : allParameterSets)
+	{
+		FalconParameters* parameters = new FalconParameters();
+		parameters->setParameterSet(parameterSet);
+		ByteString serialisedParameters = parameters->serialise();
 
-	AsymmetricParameters* reconstructedParameters = NULL;
-	CPPUNIT_ASSERT(falcon->reconstructParameters(&reconstructedParameters,
-		serialisedParameters));
-	CPPUNIT_ASSERT(reconstructedParameters != NULL);
-	CPPUNIT_ASSERT(reconstructedParameters->areOfType(FalconParameters::type));
-	CPPUNIT_ASSERT(static_cast<FalconParameters*>(reconstructedParameters)->
-		getParameterSet() == FalconParameters::FALCON_512_PARAMETER_SET);
+		AsymmetricParameters* reconstructedParameters = NULL;
+		CPPUNIT_ASSERT(falcon->reconstructParameters(&reconstructedParameters,
+			serialisedParameters));
+		CPPUNIT_ASSERT(reconstructedParameters != NULL);
+		CPPUNIT_ASSERT(reconstructedParameters->areOfType(FalconParameters::type));
+		CPPUNIT_ASSERT(static_cast<FalconParameters*>(reconstructedParameters)->
+			getParameterSet() == parameterSet);
 
-	AsymmetricKeyPair* keyPair = NULL;
-	CPPUNIT_ASSERT(falcon->generateKeyPair(&keyPair, reconstructedParameters));
-	CPPUNIT_ASSERT(keyPair != NULL);
+		AsymmetricKeyPair* keyPair = NULL;
+		CPPUNIT_ASSERT(falcon->generateKeyPair(&keyPair, reconstructedParameters));
+		CPPUNIT_ASSERT(keyPair != NULL);
 
-	FalconPublicKey* publicKey =
-		static_cast<FalconPublicKey*>(keyPair->getPublicKey());
-	FalconPrivateKey* privateKey =
-		static_cast<FalconPrivateKey*>(keyPair->getPrivateKey());
-	ByteString serialisedKeyPair = keyPair->serialise();
+		FalconPublicKey* publicKey =
+			static_cast<FalconPublicKey*>(keyPair->getPublicKey());
+		FalconPrivateKey* privateKey =
+			static_cast<FalconPrivateKey*>(keyPair->getPrivateKey());
+		ByteString serialisedKeyPair = keyPair->serialise();
 
-	AsymmetricKeyPair* reconstructedKeyPair = NULL;
-	CPPUNIT_ASSERT(falcon->reconstructKeyPair(&reconstructedKeyPair,
-		serialisedKeyPair));
-	CPPUNIT_ASSERT(reconstructedKeyPair != NULL);
-	CPPUNIT_ASSERT(serialisedKeyPair.size() == 0);
+		AsymmetricKeyPair* reconstructedKeyPair = NULL;
+		CPPUNIT_ASSERT(falcon->reconstructKeyPair(&reconstructedKeyPair,
+			serialisedKeyPair));
+		CPPUNIT_ASSERT(reconstructedKeyPair != NULL);
+		CPPUNIT_ASSERT(serialisedKeyPair.size() == 0);
 
-	FalconPublicKey* reconstructedPublicKey =
-		static_cast<FalconPublicKey*>(reconstructedKeyPair->getPublicKey());
-	FalconPrivateKey* reconstructedPrivateKey =
-		static_cast<FalconPrivateKey*>(reconstructedKeyPair->getPrivateKey());
-	CPPUNIT_ASSERT(publicKey->getValue() == reconstructedPublicKey->getValue());
-	CPPUNIT_ASSERT(privateKey->getValue() == reconstructedPrivateKey->getValue());
-	CPPUNIT_ASSERT(reconstructedPrivateKey->PKCS8Encode().size() != 0);
+		FalconPublicKey* reconstructedPublicKey =
+			static_cast<FalconPublicKey*>(reconstructedKeyPair->getPublicKey());
+		FalconPrivateKey* reconstructedPrivateKey =
+			static_cast<FalconPrivateKey*>(reconstructedKeyPair->getPrivateKey());
+		CPPUNIT_ASSERT(publicKey->getValue() ==
+			reconstructedPublicKey->getValue());
+		CPPUNIT_ASSERT(privateKey->getValue() ==
+			reconstructedPrivateKey->getValue());
+		CPPUNIT_ASSERT(reconstructedPrivateKey->PKCS8Encode().size() != 0);
 
-	ByteString serialisedPublicKey = publicKey->serialise();
-	PublicKey* reconstructedPublic = NULL;
-	CPPUNIT_ASSERT(falcon->reconstructPublicKey(&reconstructedPublic,
-		serialisedPublicKey));
-	CPPUNIT_ASSERT(serialisedPublicKey.size() == 0);
-	CPPUNIT_ASSERT(publicKey->getValue() ==
-		static_cast<FalconPublicKey*>(reconstructedPublic)->getValue());
+		ByteString serialisedPublicKey = publicKey->serialise();
+		PublicKey* reconstructedPublic = NULL;
+		CPPUNIT_ASSERT(falcon->reconstructPublicKey(&reconstructedPublic,
+			serialisedPublicKey));
+		CPPUNIT_ASSERT(serialisedPublicKey.size() == 0);
+		CPPUNIT_ASSERT(publicKey->getValue() ==
+			static_cast<FalconPublicKey*>(reconstructedPublic)->getValue());
 
-	ByteString serialisedPrivateKey = privateKey->serialise();
-	PrivateKey* reconstructedPrivate = NULL;
-	CPPUNIT_ASSERT(falcon->reconstructPrivateKey(&reconstructedPrivate,
-		serialisedPrivateKey));
-	CPPUNIT_ASSERT(serialisedPrivateKey.size() == 0);
-	CPPUNIT_ASSERT(privateKey->getValue() ==
-		static_cast<FalconPrivateKey*>(reconstructedPrivate)->getValue());
+		ByteString serialisedPrivateKey = privateKey->serialise();
+		PrivateKey* reconstructedPrivate = NULL;
+		CPPUNIT_ASSERT(falcon->reconstructPrivateKey(&reconstructedPrivate,
+			serialisedPrivateKey));
+		CPPUNIT_ASSERT(serialisedPrivateKey.size() == 0);
+		CPPUNIT_ASSERT(privateKey->getValue() ==
+			static_cast<FalconPrivateKey*>(reconstructedPrivate)->getValue());
 
-	falcon->recyclePublicKey(reconstructedPublic);
-	falcon->recyclePrivateKey(reconstructedPrivate);
-	falcon->recycleKeyPair(reconstructedKeyPair);
-	falcon->recycleKeyPair(keyPair);
-	falcon->recycleParameters(reconstructedParameters);
-	falcon->recycleParameters(parameters);
+		falcon->recyclePublicKey(reconstructedPublic);
+		falcon->recyclePrivateKey(reconstructedPrivate);
+		falcon->recycleKeyPair(reconstructedKeyPair);
+		falcon->recycleKeyPair(keyPair);
+		falcon->recycleParameters(reconstructedParameters);
+		falcon->recycleParameters(parameters);
+	}
 }
 
 void FalconTests::testPKCS8()

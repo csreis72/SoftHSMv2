@@ -55,15 +55,23 @@ OSSLFalconPublicKey& OSSLFalconPublicKey::operator=(OSSLFalconPublicKey&& other)
 
 bool OSSLFalconPublicKey::setFromOSSL(const EVP_PKEY* inFalconKey)
 {
-	if (inFalconKey == NULL || !EVP_PKEY_is_a(inFalconKey, "falcon512")) return false;
+	if (inFalconKey == NULL) return false;
 
-	unsigned char publicKey[FalconParameters::FALCON_512_PUB_LENGTH];
+	size_t expectedLength = 0;
+	if (EVP_PKEY_is_a(inFalconKey, "falcon512"))
+		expectedLength = FalconParameters::FALCON_512_PUB_LENGTH;
+	else if (EVP_PKEY_is_a(inFalconKey, "falcon1024"))
+		expectedLength = FalconParameters::FALCON_1024_PUB_LENGTH;
+	else
+		return false;
+
+	unsigned char publicKey[FalconParameters::FALCON_1024_PUB_LENGTH];
 	size_t publicKeyLength = 0;
 	if (EVP_PKEY_get_octet_string_param(inFalconKey, OSSL_PKEY_PARAM_PUB_KEY,
 		publicKey, sizeof(publicKey), &publicKeyLength) <= 0 ||
-		publicKeyLength != sizeof(publicKey))
+		publicKeyLength != expectedLength)
 	{
-		ERROR_MSG("Could not get Falcon-512 public key");
+		ERROR_MSG("Could not get Falcon public key");
 		return false;
 	}
 
@@ -93,14 +101,14 @@ EVP_PKEY* OSSLFalconPublicKey::getOSSLKey()
 void OSSLFalconPublicKey::createOSSLKey()
 {
 	if (pkey != NULL) return;
-	if (getParameterSet() != FalconParameters::FALCON_512_PARAMETER_SET)
+	const unsigned long parameterSet = getParameterSet();
+	const char* name = OSSL::falconParameterSet2Name(parameterSet);
+	if (name == NULL)
 	{
-		ERROR_MSG("Invalid Falcon-512 public key length: %zu", getValue().size());
+		ERROR_MSG("Invalid Falcon public key length: %zu", getValue().size());
 		return;
 	}
 
-	const char* name = OSSL::falconParameterSet2Name(getParameterSet());
-	if (name == NULL) return;
 	ByteString localValue = getValue();
 
 	OSSL_PARAM params[] = {
@@ -112,7 +120,7 @@ void OSSLFalconPublicKey::createOSSLKey()
 	if (ctx == NULL || EVP_PKEY_fromdata_init(ctx) <= 0 ||
 		EVP_PKEY_fromdata(ctx, &pkey, EVP_PKEY_PUBLIC_KEY, params) <= 0)
 	{
-		ERROR_MSG("Could not create Falcon-512 public EVP_PKEY");
+		ERROR_MSG("Could not create Falcon public EVP_PKEY");
 		EVP_PKEY_free(pkey);
 		pkey = NULL;
 	}

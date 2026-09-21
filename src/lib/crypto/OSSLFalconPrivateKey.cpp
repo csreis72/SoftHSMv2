@@ -59,22 +59,39 @@ OSSLFalconPrivateKey& OSSLFalconPrivateKey::operator=(OSSLFalconPrivateKey&& oth
 
 bool OSSLFalconPrivateKey::setFromOSSL(const EVP_PKEY* inFalconKey)
 {
-	if (inFalconKey == NULL || !EVP_PKEY_is_a(inFalconKey, "falcon512")) return false;
+	if (inFalconKey == NULL) return false;
 
-	unsigned char privateKey[FalconParameters::FALCON_512_PRIV_LENGTH];
-	unsigned char publicKey[FalconParameters::FALCON_512_PUB_LENGTH];
+	size_t expectedPrivateLength = 0;
+	size_t expectedPublicLength = 0;
+	if (EVP_PKEY_is_a(inFalconKey, "falcon512"))
+	{
+		expectedPrivateLength = FalconParameters::FALCON_512_PRIV_LENGTH;
+		expectedPublicLength = FalconParameters::FALCON_512_PUB_LENGTH;
+	}
+	else if (EVP_PKEY_is_a(inFalconKey, "falcon1024"))
+	{
+		expectedPrivateLength = FalconParameters::FALCON_1024_PRIV_LENGTH;
+		expectedPublicLength = FalconParameters::FALCON_1024_PUB_LENGTH;
+	}
+	else
+	{
+		return false;
+	}
+
+	unsigned char privateKey[FalconParameters::FALCON_1024_PRIV_LENGTH];
+	unsigned char publicKey[FalconParameters::FALCON_1024_PUB_LENGTH];
 	size_t privateKeyLength = 0;
 	size_t publicKeyLength = 0;
 	const bool privateOK = EVP_PKEY_get_octet_string_param(inFalconKey,
 		OSSL_PKEY_PARAM_PRIV_KEY, privateKey, sizeof(privateKey),
-		&privateKeyLength) > 0 && privateKeyLength == sizeof(privateKey);
+		&privateKeyLength) > 0 && privateKeyLength == expectedPrivateLength;
 	const bool publicOK = EVP_PKEY_get_octet_string_param(inFalconKey,
 		OSSL_PKEY_PARAM_PUB_KEY, publicKey, sizeof(publicKey),
-		&publicKeyLength) > 0 && publicKeyLength == sizeof(publicKey);
+		&publicKeyLength) > 0 && publicKeyLength == expectedPublicLength;
 
 	if (!privateOK)
 	{
-		ERROR_MSG("Could not get Falcon-512 private key");
+		ERROR_MSG("Could not get Falcon private key");
 		OPENSSL_cleanse(privateKey, sizeof(privateKey));
 		return false;
 	}
@@ -169,22 +186,26 @@ EVP_PKEY* OSSLFalconPrivateKey::getOSSLKey()
 void OSSLFalconPrivateKey::createOSSLKey()
 {
 	if (pkey != NULL) return;
-	if (getParameterSet() != FalconParameters::FALCON_512_PARAMETER_SET)
+	const unsigned long parameterSet = getParameterSet();
+	const char* name = OSSL::falconParameterSet2Name(parameterSet);
+	if (name == NULL)
 	{
-		ERROR_MSG("Invalid Falcon-512 private key length: %zu", getValue().size());
+		ERROR_MSG("Invalid Falcon private key length: %zu", getValue().size());
 		return;
 	}
 
-	const char* name = OSSL::falconParameterSet2Name(getParameterSet());
-	if (name == NULL) return;
 	ByteString localValue = getValue();
+	const size_t expectedPublicLength =
+		parameterSet == FalconParameters::FALCON_512_PARAMETER_SET ?
+		FalconParameters::FALCON_512_PUB_LENGTH :
+		FalconParameters::FALCON_1024_PUB_LENGTH;
 
 	OSSL_PARAM params[3];
 	OSSL_PARAM* param = params;
 	*param++ = OSSL_PARAM_construct_octet_string(OSSL_PKEY_PARAM_PRIV_KEY,
 		localValue.byte_str(), localValue.size());
 	int selection = EVP_PKEY_PRIVATE_KEY;
-	if (publicValue.size() == FalconParameters::FALCON_512_PUB_LENGTH)
+	if (publicValue.size() == expectedPublicLength)
 	{
 		*param++ = OSSL_PARAM_construct_octet_string(OSSL_PKEY_PARAM_PUB_KEY,
 			publicValue.byte_str(), publicValue.size());
@@ -196,7 +217,7 @@ void OSSLFalconPrivateKey::createOSSLKey()
 	if (ctx == NULL || EVP_PKEY_fromdata_init(ctx) <= 0 ||
 		EVP_PKEY_fromdata(ctx, &pkey, selection, params) <= 0)
 	{
-		ERROR_MSG("Could not create Falcon-512 private EVP_PKEY");
+		ERROR_MSG("Could not create Falcon private EVP_PKEY");
 		EVP_PKEY_free(pkey);
 		pkey = NULL;
 	}

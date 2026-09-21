@@ -53,7 +53,8 @@ class SignVerifyTests : public TestsBase
 	CPPUNIT_TEST_PARAMETERIZED(testMLDSASignVerify, {CKP_ML_DSA_44, CKP_ML_DSA_65, CKP_ML_DSA_87});
 #endif
 #ifdef WITH_FALCON
-	CPPUNIT_TEST(testFalconSignVerify);
+	CPPUNIT_TEST_PARAMETERIZED(testFalconSignVerify,
+		{CKP_FALCON_512, CKP_FALCON_1024});
 #endif
 	CPPUNIT_TEST(testSignInitWrongKeyType);
 	CPPUNIT_TEST(testVerifyInitWrongKeyType);
@@ -72,7 +73,7 @@ public:
 	void testMLDSASignVerify(CK_ULONG parameterSet);
 #endif
 #ifdef WITH_FALCON
-	void testFalconSignVerify();
+	void testFalconSignVerify(CK_ULONG parameterSet);
 #endif
 	void testSignInitWrongKeyType();
 	void testVerifyInitWrongKeyType();
@@ -89,7 +90,7 @@ protected:
 	CK_RV generateMLDSA(CK_ULONG parameterSet, CK_SESSION_HANDLE hSession, CK_BBOOL bTokenPuk, CK_BBOOL bPrivatePuk, CK_BBOOL bTokenPrk, CK_BBOOL bPrivatePrk, CK_OBJECT_HANDLE &hPuk, CK_OBJECT_HANDLE &hPrk);
 #endif
 #ifdef WITH_FALCON
-	CK_RV generateFalcon(CK_SESSION_HANDLE hSession, CK_BBOOL bTokenPuk, CK_BBOOL bPrivatePuk, CK_BBOOL bTokenPrk, CK_BBOOL bPrivatePrk, CK_OBJECT_HANDLE &hPuk, CK_OBJECT_HANDLE &hPrk);
+	CK_RV generateFalcon(CK_ULONG parameterSet, CK_SESSION_HANDLE hSession, CK_BBOOL bTokenPuk, CK_BBOOL bPrivatePuk, CK_BBOOL bTokenPrk, CK_BBOOL bPrivatePrk, CK_OBJECT_HANDLE &hPuk, CK_OBJECT_HANDLE &hPrk);
 #endif
 	void signVerifySingle(CK_MECHANISM_TYPE mechanismType, CK_SESSION_HANDLE hSession, CK_OBJECT_HANDLE hPublicKey, CK_OBJECT_HANDLE hPrivateKey, CK_VOID_PTR param = NULL_PTR, CK_ULONG paramLen = 0);
 	void signVerifySingleData(size_t dataSize, CK_MECHANISM_TYPE mechanismType, CK_SESSION_HANDLE hSession, CK_OBJECT_HANDLE hPublicKey, CK_OBJECT_HANDLE hPrivateKey, CK_VOID_PTR param = NULL_PTR, CK_ULONG paramLen = 0);

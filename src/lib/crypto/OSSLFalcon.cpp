@@ -221,7 +221,7 @@ unsigned long OSSLFalcon::getMinKeySize()
 
 unsigned long OSSLFalcon::getMaxKeySize()
 {
-	return FalconParameters::FALCON_512_PUB_LENGTH;
+	return FalconParameters::FALCON_1024_PUB_LENGTH;
 }
 
 bool OSSLFalcon::generateKeyPair(AsymmetricKeyPair** ppKeyPair,
