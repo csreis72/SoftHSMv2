@@ -157,6 +157,9 @@
 /* Compile with ML-KEM support */
 #cmakedefine WITH_ML_KEM @WITH_ML_KEM@
 
+/* Compile with X-Wing support */
+#cmakedefine WITH_X_WING @WITH_X_WING@
+
 /* Compile with FIPS 140-2 mode */
 #cmakedefine WITH_FIPS @WITH_FIPS@
 
