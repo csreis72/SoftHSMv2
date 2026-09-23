@@ -103,6 +103,11 @@ if(WITH_OPENSSL)
                         OSSLSHA384.cpp
                         OSSLSHA512.cpp
                         OSSLUtil.cpp
+                        OSSLXWing.cpp
+                        OSSLXWingKeyPair.cpp
+                        OSSLXWingPrivateKey.cpp
+                        OSSLXWingPublicKey.cpp
+                        OSSLXWingUtil.cpp
                         )
 endif(WITH_OPENSSL)
 
