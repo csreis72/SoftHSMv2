@@ -273,6 +273,18 @@ void InfoTests::testGetMechanismList()
 	// Get the mechanism list
 	rv = CRYPTOKI_F_PTR( C_GetMechanismList(m_initializedTokenSlotID, pMechanismList, &ulMechCount) );
 	CPPUNIT_ASSERT(rv == CKR_OK);
+#ifdef WITH_X_WING
+	bool xWingKeyPairGenerationFound = false;
+	for (CK_ULONG i = 0; i < ulMechCount; ++i)
+	{
+		if (pMechanismList[i] == CKM_X_WING_KEY_PAIR_GEN)
+		{
+			xWingKeyPairGenerationFound = true;
+			break;
+		}
+	}
+	CPPUNIT_ASSERT(xWingKeyPairGenerationFound);
+#endif
 	free(pMechanismList);
 
 	CRYPTOKI_F_PTR( C_Finalize(NULL_PTR) );
@@ -316,6 +328,14 @@ void InfoTests::testGetMechanismInfo()
 		rv = CRYPTOKI_F_PTR( C_GetMechanismInfo(m_initializedTokenSlotID, pMechanismList[i], &info) );
 		CPPUNIT_ASSERT(rv == CKR_OK);
 	}
+
+#ifdef WITH_X_WING
+	rv = CRYPTOKI_F_PTR( C_GetMechanismInfo(m_initializedTokenSlotID, CKM_X_WING_KEY_PAIR_GEN, &info) );
+	CPPUNIT_ASSERT_EQUAL(CKR_OK, rv);
+	CPPUNIT_ASSERT_EQUAL((CK_ULONG)32, info.ulMinKeySize);
+	CPPUNIT_ASSERT_EQUAL((CK_ULONG)32, info.ulMaxKeySize);
+	CPPUNIT_ASSERT_EQUAL((CK_FLAGS)CKF_GENERATE_KEY_PAIR, info.flags);
+#endif
 
 	free(pMechanismList);
 
