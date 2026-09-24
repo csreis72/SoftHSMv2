@@ -76,6 +76,11 @@
 #include "MLKEMPrivateKey.h"
 #include "MLKEMUtil.h"
 #endif
+#ifdef WITH_X_WING
+#include "XWingParameters.h"
+#include "XWingPublicKey.h"
+#include "XWingPrivateKey.h"
+#endif
 #include "cryptoki.h"
 #include "SoftHSM.h"
 #include "osmutex.h"
@@ -882,6 +887,9 @@ void SoftHSM::prepareSupportedMechanisms(std::map<std::string, CK_MECHANISM_TYPE
 	t["CKM_ML_KEM_KEY_PAIR_GEN"] = CKM_ML_KEM_KEY_PAIR_GEN;
 	t["CKM_ML_KEM"]			= CKM_ML_KEM;
 #endif
+#ifdef WITH_X_WING
+	t["CKM_X_WING_KEY_PAIR_GEN"] = CKM_X_WING_KEY_PAIR_GEN;
+#endif
 	t["CKM_CONCATENATE_DATA_AND_BASE"] = CKM_CONCATENATE_DATA_AND_BASE;
 	t["CKM_CONCATENATE_BASE_AND_DATA"] = CKM_CONCATENATE_BASE_AND_DATA;
 	t["CKM_CONCATENATE_BASE_AND_KEY"] = CKM_CONCATENATE_BASE_AND_KEY;
@@ -994,6 +1002,9 @@ CK_RV SoftHSM::C_GetMechanismInfo(CK_SLOT_ID slotID, CK_MECHANISM_TYPE type, CK_
     unsigned long mlkemMinSize = 0, mlkemMaxSize = 0;
 #endif
 
+#ifdef WITH_X_WING
+	unsigned long xwingMinSize = 0, xwingMaxSize = 0;
+#endif
 	if (!isInitialised) return CKR_CRYPTOKI_NOT_INITIALIZED;
 	if (pInfo == NULL_PTR) return CKR_ARGUMENTS_BAD;
 
@@ -1114,6 +1125,19 @@ CK_RV SoftHSM::C_GetMechanismInfo(CK_SLOT_ID slotID, CK_MECHANISM_TYPE type, CK_
 		return CKR_GENERAL_ERROR;
 	}
 	CryptoFactory::i()->recycleAsymmetricAlgorithm(mlkem);
+#endif
+#ifdef WITH_X_WING
+	AsymmetricAlgorithm* xwing = CryptoFactory::i()->getAsymmetricAlgorithm(AsymAlgo::XWING);
+	if (xwing != NULL)
+	{
+		xwingMinSize = xwing->getMinKeySize();
+		xwingMaxSize = xwing->getMaxKeySize();
+	}
+	else
+	{
+		return CKR_GENERAL_ERROR;
+	}
+	CryptoFactory::i()->recycleAsymmetricAlgorithm(xwing);
 #endif
 	pInfo->flags = 0;	// initialize flags
 	switch (type)
@@ -1428,6 +1452,13 @@ CK_RV SoftHSM::C_GetMechanismInfo(CK_SLOT_ID slotID, CK_MECHANISM_TYPE type, CK_
 			pInfo->ulMinKeySize = mlkemMinSize;
 			pInfo->ulMaxKeySize = mlkemMaxSize;
 			pInfo->flags = CKF_ENCAPSULATE | CKF_DECAPSULATE;
+			break;
+#endif
+#ifdef WITH_X_WING
+		case CKM_X_WING_KEY_PAIR_GEN:
+			pInfo->ulMinKeySize = xwingMinSize;
+			pInfo->ulMaxKeySize = xwingMaxSize;
+			pInfo->flags = CKF_GENERATE_KEY_PAIR;
 			break;
 #endif
 	    case CKM_CONCATENATE_DATA_AND_BASE:
@@ -6460,6 +6491,11 @@ CK_RV SoftHSM::C_GenerateKeyPair
 			keyType = CKK_ML_KEM;
 			break;
 #endif
+#ifdef WITH_X_WING
+		case CKM_X_WING_KEY_PAIR_GEN:
+			keyType = CKK_X_WING;
+			break;
+#endif
 		default:
 			return CKR_MECHANISM_INVALID;
 	}
@@ -6491,6 +6527,8 @@ CK_RV SoftHSM::C_GenerateKeyPair
 		return CKR_TEMPLATE_INCONSISTENT;
 	if (pMechanism->mechanism == CKM_ML_KEM_KEY_PAIR_GEN && keyType != CKK_ML_KEM)
 		return CKR_TEMPLATE_INCONSISTENT;
+	if (pMechanism->mechanism == CKM_X_WING_KEY_PAIR_GEN && keyType != CKK_X_WING)
+		return CKR_TEMPLATE_INCONSISTENT;
 
 	// Extract information from the private key template that is needed to create the object.
 	CK_OBJECT_CLASS privateKeyClass = CKO_PRIVATE_KEY;
@@ -6517,6 +6555,8 @@ CK_RV SoftHSM::C_GenerateKeyPair
 	if (pMechanism->mechanism == CKM_ML_DSA_KEY_PAIR_GEN && keyType != CKK_ML_DSA)
 		return CKR_TEMPLATE_INCONSISTENT;
 	if (pMechanism->mechanism == CKM_ML_KEM_KEY_PAIR_GEN && keyType != CKK_ML_KEM)
+		return CKR_TEMPLATE_INCONSISTENT;
+	if (pMechanism->mechanism == CKM_X_WING_KEY_PAIR_GEN && keyType != CKK_X_WING)
 		return CKR_TEMPLATE_INCONSISTENT;
 
 	// Check user credentials
@@ -6613,6 +6653,16 @@ CK_RV SoftHSM::C_GenerateKeyPair
 	}
 #endif
 
+#ifdef WITH_X_WING
+	if (pMechanism->mechanism == CKM_X_WING_KEY_PAIR_GEN)
+	{
+		return this->generateXWing(hSession,
+			pPublicKeyTemplate, ulPublicKeyAttributeCount,
+			pPrivateKeyTemplate, ulPrivateKeyAttributeCount,
+			phPublicKey, phPrivateKey,
+			ispublicKeyToken, ispublicKeyPrivate, isprivateKeyToken, isprivateKeyPrivate);
+	}
+#endif
 	return CKR_GENERAL_ERROR;
 }
 
@@ -11294,6 +11344,237 @@ CK_RV SoftHSM::generateMLDSA
 			OSObject* ospub = (OSObject*)handleManager->getObject(*phPublicKey);
 			handleManager->destroyObject(*phPublicKey);
 			if (ospub) ospub->destroyObject();
+			*phPublicKey = CK_INVALID_HANDLE;
+		}
+	}
+
+	return rv;
+}
+#endif
+
+#ifdef WITH_X_WING
+// Generate an X-Wing key pair
+CK_RV SoftHSM::generateXWing
+(CK_SESSION_HANDLE hSession,
+	CK_ATTRIBUTE_PTR pPublicKeyTemplate,
+	CK_ULONG ulPublicKeyAttributeCount,
+	CK_ATTRIBUTE_PTR pPrivateKeyTemplate,
+	CK_ULONG ulPrivateKeyAttributeCount,
+	CK_OBJECT_HANDLE_PTR phPublicKey,
+	CK_OBJECT_HANDLE_PTR phPrivateKey,
+	CK_BBOOL isPublicKeyOnToken,
+	CK_BBOOL isPublicKeyPrivate,
+	CK_BBOOL isPrivateKeyOnToken,
+	CK_BBOOL isPrivateKeyPrivate)
+{
+	*phPublicKey = CK_INVALID_HANDLE;
+	*phPrivateKey = CK_INVALID_HANDLE;
+
+	Session* session = (Session*)handleManager->getSession(hSession);
+	if (session == NULL)
+		return CKR_SESSION_HANDLE_INVALID;
+
+	Token* token = session->getToken();
+	if (token == NULL)
+		return CKR_GENERAL_ERROR;
+
+	XWingParameters parameters;
+	AsymmetricKeyPair* keyPair = NULL;
+	AsymmetricAlgorithm* xwing =
+		CryptoFactory::i()->getAsymmetricAlgorithm(AsymAlgo::XWING);
+	if (xwing == NULL)
+		return CKR_GENERAL_ERROR;
+	if (!xwing->generateKeyPair(&keyPair, &parameters))
+	{
+		ERROR_MSG("Could not generate X-Wing key pair");
+		CryptoFactory::i()->recycleAsymmetricAlgorithm(xwing);
+		return CKR_GENERAL_ERROR;
+	}
+
+	XWingPublicKey* publicKey =
+		static_cast<XWingPublicKey*>(keyPair->getPublicKey());
+	XWingPrivateKey* privateKey =
+		static_cast<XWingPrivateKey*>(keyPair->getPrivateKey());
+	CK_RV rv = CKR_OK;
+
+	if (rv == CKR_OK)
+	{
+		const CK_ULONG maxAttribs = 32;
+		CK_OBJECT_CLASS publicKeyClass = CKO_PUBLIC_KEY;
+		CK_KEY_TYPE publicKeyType = CKK_X_WING;
+		CK_ATTRIBUTE publicKeyAttribs[maxAttribs] = {
+			{ CKA_CLASS, &publicKeyClass, sizeof(publicKeyClass) },
+			{ CKA_TOKEN, &isPublicKeyOnToken, sizeof(isPublicKeyOnToken) },
+			{ CKA_PRIVATE, &isPublicKeyPrivate, sizeof(isPublicKeyPrivate) },
+			{ CKA_KEY_TYPE, &publicKeyType, sizeof(publicKeyType) },
+		};
+		CK_ULONG publicKeyAttribsCount = 4;
+
+		if (ulPublicKeyAttributeCount > (maxAttribs - publicKeyAttribsCount))
+			rv = CKR_TEMPLATE_INCONSISTENT;
+		for (CK_ULONG i = 0;
+		     i < ulPublicKeyAttributeCount && rv == CKR_OK; ++i)
+		{
+			switch (pPublicKeyTemplate[i].type)
+			{
+				case CKA_CLASS:
+				case CKA_TOKEN:
+				case CKA_PRIVATE:
+				case CKA_KEY_TYPE:
+					continue;
+				default:
+					publicKeyAttribs[publicKeyAttribsCount++] =
+						pPublicKeyTemplate[i];
+			}
+		}
+
+		if (rv == CKR_OK)
+			rv = this->CreateObject(hSession, publicKeyAttribs,
+				publicKeyAttribsCount, phPublicKey, OBJECT_OP_GENERATE);
+
+		if (rv == CKR_OK)
+		{
+			OSObject* osobject =
+				(OSObject*)handleManager->getObject(*phPublicKey);
+			if (osobject == NULL_PTR || !osobject->isValid())
+			{
+				rv = CKR_FUNCTION_FAILED;
+			}
+			else if (osobject->startTransaction())
+			{
+				bool bOK = true;
+				bOK = bOK && osobject->setAttribute(CKA_LOCAL, true);
+				CK_ULONG keyGenMechanism =
+					(CK_ULONG)CKM_X_WING_KEY_PAIR_GEN;
+				bOK = bOK && osobject->setAttribute(
+					CKA_KEY_GEN_MECHANISM, keyGenMechanism);
+
+				ByteString value;
+				if (isPublicKeyPrivate)
+					token->encrypt(publicKey->getValue(), value);
+				else
+					value = publicKey->getValue();
+				bOK = bOK && osobject->setAttribute(CKA_VALUE, value);
+
+				if (bOK)
+					bOK = osobject->commitTransaction();
+				else
+					osobject->abortTransaction();
+				if (!bOK)
+					rv = CKR_FUNCTION_FAILED;
+			}
+			else
+			{
+				rv = CKR_FUNCTION_FAILED;
+			}
+		}
+	}
+
+	if (rv == CKR_OK)
+	{
+		const CK_ULONG maxAttribs = 32;
+		CK_OBJECT_CLASS privateKeyClass = CKO_PRIVATE_KEY;
+		CK_KEY_TYPE privateKeyType = CKK_X_WING;
+		CK_ATTRIBUTE privateKeyAttribs[maxAttribs] = {
+			{ CKA_CLASS, &privateKeyClass, sizeof(privateKeyClass) },
+			{ CKA_TOKEN, &isPrivateKeyOnToken, sizeof(isPrivateKeyOnToken) },
+			{ CKA_PRIVATE, &isPrivateKeyPrivate, sizeof(isPrivateKeyPrivate) },
+			{ CKA_KEY_TYPE, &privateKeyType, sizeof(privateKeyType) },
+		};
+		CK_ULONG privateKeyAttribsCount = 4;
+
+		if (ulPrivateKeyAttributeCount > (maxAttribs - privateKeyAttribsCount))
+			rv = CKR_TEMPLATE_INCONSISTENT;
+		for (CK_ULONG i = 0;
+		     i < ulPrivateKeyAttributeCount && rv == CKR_OK; ++i)
+		{
+			switch (pPrivateKeyTemplate[i].type)
+			{
+				case CKA_CLASS:
+				case CKA_TOKEN:
+				case CKA_PRIVATE:
+				case CKA_KEY_TYPE:
+					continue;
+				default:
+					privateKeyAttribs[privateKeyAttribsCount++] =
+						pPrivateKeyTemplate[i];
+			}
+		}
+
+		if (rv == CKR_OK)
+			rv = this->CreateObject(hSession, privateKeyAttribs,
+				privateKeyAttribsCount, phPrivateKey, OBJECT_OP_GENERATE);
+
+		if (rv == CKR_OK)
+		{
+			OSObject* osobject =
+				(OSObject*)handleManager->getObject(*phPrivateKey);
+			if (osobject == NULL_PTR || !osobject->isValid())
+			{
+				rv = CKR_FUNCTION_FAILED;
+			}
+			else if (osobject->startTransaction())
+			{
+				bool bOK = true;
+				bOK = bOK && osobject->setAttribute(CKA_LOCAL, true);
+				CK_ULONG keyGenMechanism =
+					(CK_ULONG)CKM_X_WING_KEY_PAIR_GEN;
+				bOK = bOK && osobject->setAttribute(
+					CKA_KEY_GEN_MECHANISM, keyGenMechanism);
+
+				bool alwaysSensitive =
+					osobject->getBooleanValue(CKA_SENSITIVE, false);
+				bOK = bOK && osobject->setAttribute(
+					CKA_ALWAYS_SENSITIVE, alwaysSensitive);
+				bool neverExtractable =
+					!osobject->getBooleanValue(CKA_EXTRACTABLE, false);
+				bOK = bOK && osobject->setAttribute(
+					CKA_NEVER_EXTRACTABLE, neverExtractable);
+
+				ByteString value;
+				if (isPrivateKeyPrivate)
+					token->encrypt(privateKey->getValue(), value);
+				else
+					value = privateKey->getValue();
+				bOK = bOK && osobject->setAttribute(CKA_VALUE, value);
+				value.wipe();
+
+				if (bOK)
+					bOK = osobject->commitTransaction();
+				else
+					osobject->abortTransaction();
+				if (!bOK)
+					rv = CKR_FUNCTION_FAILED;
+			}
+			else
+			{
+				rv = CKR_FUNCTION_FAILED;
+			}
+		}
+	}
+
+	xwing->recycleKeyPair(keyPair);
+	CryptoFactory::i()->recycleAsymmetricAlgorithm(xwing);
+
+	if (rv != CKR_OK)
+	{
+		if (*phPrivateKey != CK_INVALID_HANDLE)
+		{
+			OSObject* privateObject =
+				(OSObject*)handleManager->getObject(*phPrivateKey);
+			handleManager->destroyObject(*phPrivateKey);
+			if (privateObject != NULL)
+				privateObject->destroyObject();
+			*phPrivateKey = CK_INVALID_HANDLE;
+		}
+
+		if (*phPublicKey != CK_INVALID_HANDLE)
+		{
+			OSObject* publicObject =
+				(OSObject*)handleManager->getObject(*phPublicKey);
+			handleManager->destroyObject(*phPublicKey);
+			if (publicObject != NULL)
+				publicObject->destroyObject();
 			*phPublicKey = CK_INVALID_HANDLE;
 		}
 	}
