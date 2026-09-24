@@ -162,6 +162,10 @@ static CK_RV newP11Object(CK_OBJECT_CLASS objClass, CK_KEY_TYPE keyType, CK_CERT
 			else if (keyType == CKK_ML_KEM)
 				*p11object = new P11MLKEMPublicKeyObj();
 #endif
+#ifdef WITH_X_WING
+			else if (keyType == CKK_X_WING)
+				*p11object = new P11XWingPublicKeyObj();
+#endif
 			else
 				return CKR_ATTRIBUTE_VALUE_INVALID;
 			break;
@@ -186,6 +190,10 @@ static CK_RV newP11Object(CK_OBJECT_CLASS objClass, CK_KEY_TYPE keyType, CK_CERT
 #ifdef WITH_ML_KEM
 			else if (keyType == CKK_ML_KEM)
 				*p11object = new P11MLKEMPrivateKeyObj();
+#endif
+#ifdef WITH_X_WING
+			else if (keyType == CKK_X_WING)
+				*p11object = new P11XWingPrivateKeyObj();
 #endif
 			else
 				return CKR_ATTRIBUTE_VALUE_INVALID;
