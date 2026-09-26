@@ -113,8 +113,7 @@ libsofthsm_crypto_la_SOURCES +=	OSSLAES.cpp \
 				OSSLXWing.cpp \
 				OSSLXWingKeyPair.cpp \
 				OSSLXWingPrivateKey.cpp \
-				OSSLXWingPublicKey.cpp \
-				OSSLXWingUtil.cpp
+				OSSLXWingPublicKey.cpp
 endif
 
 # Compile with support of Botan

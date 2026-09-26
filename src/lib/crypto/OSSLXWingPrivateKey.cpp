@@ -11,10 +11,11 @@
 
 #include "config.h"
 #ifdef WITH_X_WING
+#include "log.h"
 #include "OSSLXWingPrivateKey.h"
-#include "OSSLXWingUtil.h"
 #include "XWingParameters.h"
 #include <openssl/asn1.h>
+#include <openssl/core_names.h>
 #include <openssl/crypto.h>
 #include <openssl/objects.h>
 #include <openssl/x509.h>
@@ -24,23 +25,115 @@
 namespace
 {
 const char* X_WING_OID = "1.3.6.1.4.1.62253.25722";
+
+bool shake256(const ByteString& input, unsigned char* output,
+	size_t outputLen)
+{
+	EVP_MD* shake = EVP_MD_fetch(NULL, "SHAKE256", NULL);
+	EVP_MD_CTX* ctx = EVP_MD_CTX_new();
+	const bool rv = shake != NULL && ctx != NULL &&
+		EVP_DigestInit_ex(ctx, shake, NULL) > 0 &&
+		EVP_DigestUpdate(ctx, input.const_byte_str(), input.size()) > 0 &&
+		EVP_DigestFinalXOF(ctx, output, outputLen) > 0;
+	EVP_MD_CTX_free(ctx);
+	EVP_MD_free(shake);
+	return rv;
 }
 
-OSSLXWingPrivateKey::OSSLXWingPrivateKey() : mlkemKey(NULL), x25519Key(NULL)
+bool generateMLKEMKeyPair(const unsigned char* seed, EVP_PKEY** pkey)
+{
+	EVP_PKEY_CTX* ctx =
+		EVP_PKEY_CTX_new_from_name(NULL, "ML-KEM-768", NULL);
+	OSSL_PARAM params[] = {
+		OSSL_PARAM_construct_octet_string(OSSL_PKEY_PARAM_ML_KEM_SEED,
+		                                  const_cast<unsigned char*>(seed),
+		                                  XWingParameters::ML_KEM_768_SEED_LENGTH),
+		OSSL_PARAM_construct_end()
+	};
+	const bool rv = ctx != NULL && EVP_PKEY_keygen_init(ctx) > 0 &&
+		EVP_PKEY_CTX_set_params(ctx, params) > 0 &&
+		EVP_PKEY_generate(ctx, pkey) > 0;
+	EVP_PKEY_CTX_free(ctx);
+	return rv;
+}
+
+bool expandDecapsulationKey(const ByteString& seed, EVP_PKEY** mlkemPkey,
+	EVP_PKEY** x25519Pkey, ByteString& publicValue)
+{
+	if (mlkemPkey == NULL || x25519Pkey == NULL ||
+		seed.size() != XWingParameters::X_WING_PRIV_LENGTH)
+	{
+		return false;
+	}
+
+	*mlkemPkey = NULL;
+	*x25519Pkey = NULL;
+	unsigned char keyDerivationMaterial[
+		XWingParameters::X_WING_KEY_DERIVATION_LENGTH];
+	unsigned char mlkemPub[XWingParameters::ML_KEM_768_PUB_LENGTH];
+	unsigned char x25519Pub[XWingParameters::X25519_PUB_LENGTH];
+	size_t mlkemPubLen = sizeof(mlkemPub);
+	size_t x25519PubLen = sizeof(x25519Pub);
+
+	// draft-connolly-cfrg-xwing-kem-10 expands sk into d || z || sk_X.
+	// OpenSSL accepts d || z as the 64-byte ML-KEM key-generation seed.
+	bool rv = shake256(seed, keyDerivationMaterial,
+	                   sizeof(keyDerivationMaterial)) &&
+		generateMLKEMKeyPair(keyDerivationMaterial, mlkemPkey);
+	if (rv)
+	{
+		*x25519Pkey = EVP_PKEY_new_raw_private_key_ex(
+			NULL, "X25519", NULL,
+			keyDerivationMaterial +
+				XWingParameters::ML_KEM_768_SEED_LENGTH,
+			XWingParameters::X25519_PRIV_LENGTH);
+		rv = *x25519Pkey != NULL &&
+			EVP_PKEY_get_octet_string_param(
+				*mlkemPkey, OSSL_PKEY_PARAM_PUB_KEY, mlkemPub,
+				sizeof(mlkemPub), &mlkemPubLen) > 0 &&
+			mlkemPubLen == sizeof(mlkemPub) &&
+			EVP_PKEY_get_raw_public_key(*x25519Pkey, x25519Pub,
+			                            &x25519PubLen) > 0 &&
+			x25519PubLen == sizeof(x25519Pub);
+	}
+
+	if (rv)
+	{
+		publicValue = ByteString(mlkemPub, mlkemPubLen) +
+		              ByteString(x25519Pub, x25519PubLen);
+	}
+	else
+	{
+		ERROR_MSG("Could not expand X-Wing decapsulation key");
+		EVP_PKEY_free(*mlkemPkey);
+		EVP_PKEY_free(*x25519Pkey);
+		*mlkemPkey = NULL;
+		*x25519Pkey = NULL;
+		publicValue.wipe();
+	}
+
+	OPENSSL_cleanse(keyDerivationMaterial, sizeof(keyDerivationMaterial));
+	OPENSSL_cleanse(mlkemPub, sizeof(mlkemPub));
+	OPENSSL_cleanse(x25519Pub, sizeof(x25519Pub));
+	return rv;
+}
+}
+
+OSSLXWingPrivateKey::OSSLXWingPrivateKey() : mlkemPkey(NULL), x25519Pkey(NULL)
 {
 }
 
 OSSLXWingPrivateKey::~OSSLXWingPrivateKey()
 {
-	invalidateExpandedKey();
+	resetOSSLKeys();
 }
 
 OSSLXWingPrivateKey::OSSLXWingPrivateKey(OSSLXWingPrivateKey&& other) noexcept
-	: XWingPrivateKey(std::move(other)), mlkemKey(other.mlkemKey),
-	  x25519Key(other.x25519Key), publicValue(std::move(other.publicValue))
+	: XWingPrivateKey(std::move(other)), mlkemPkey(other.mlkemPkey),
+	  x25519Pkey(other.x25519Pkey), publicValue(std::move(other.publicValue))
 {
-	other.mlkemKey = NULL;
-	other.x25519Key = NULL;
+	other.mlkemPkey = NULL;
+	other.x25519Pkey = NULL;
 }
 
 OSSLXWingPrivateKey& OSSLXWingPrivateKey::operator=(OSSLXWingPrivateKey&& other) noexcept
@@ -48,72 +141,78 @@ OSSLXWingPrivateKey& OSSLXWingPrivateKey::operator=(OSSLXWingPrivateKey&& other)
 	if (this != &other)
 	{
 		XWingPrivateKey::operator=(std::move(other));
-		invalidateExpandedKey();
-		mlkemKey = other.mlkemKey;
-		x25519Key = other.x25519Key;
+		resetOSSLKeys();
+		mlkemPkey = other.mlkemPkey;
+		x25519Pkey = other.x25519Pkey;
 		publicValue = std::move(other.publicValue);
-		other.mlkemKey = NULL;
-		other.x25519Key = NULL;
+		other.mlkemPkey = NULL;
+		other.x25519Pkey = NULL;
 	}
 	return *this;
 }
 
-/*static*/ const char* OSSLXWingPrivateKey::type = "OpenSSL X-Wing private key";
+/*static*/ const char* OSSLXWingPrivateKey::type = "OpenSSL X-Wing Private Key";
 
 bool OSSLXWingPrivateKey::isOfType(const char* inType)
 {
-	return inType != NULL &&
-		(strcmp(type, inType) == 0 || XWingPrivateKey::isOfType(inType));
+	if (inType == NULL)
+	{
+		return false;
+	}
+	return !strcmp(type, inType) || XWingPrivateKey::isOfType(inType);
 }
 
-void OSSLXWingPrivateKey::invalidateExpandedKey()
+void OSSLXWingPrivateKey::resetOSSLKeys()
 {
-	EVP_PKEY_free(mlkemKey);
-	EVP_PKEY_free(x25519Key);
-	mlkemKey = NULL;
-	x25519Key = NULL;
+	EVP_PKEY_free(mlkemPkey);
+	EVP_PKEY_free(x25519Pkey);
+	mlkemPkey = NULL;
+	x25519Pkey = NULL;
 	publicValue.wipe();
 }
 
 void OSSLXWingPrivateKey::setValue(const ByteString& inValue)
 {
 	XWingPrivateKey::setValue(inValue);
-	invalidateExpandedKey();
+	resetOSSLKeys();
 }
 
-bool OSSLXWingPrivateKey::expandKey()
+void OSSLXWingPrivateKey::createOSSLKeys()
 {
-	if (mlkemKey != NULL && x25519Key != NULL &&
-		publicValue.size() == XWingParameters::PUBLIC_KEY_LENGTH)
+	if (mlkemPkey != NULL && x25519Pkey != NULL &&
+		publicValue.size() == XWingParameters::X_WING_PUB_LENGTH)
 	{
-		return true;
+		return;
 	}
-	invalidateExpandedKey();
-	return OSSLXWing::expandPrivateKey(getValue(), &mlkemKey, &x25519Key,
-	                                  publicValue);
+	resetOSSLKeys();
+	expandDecapsulationKey(getValue(), &mlkemPkey, &x25519Pkey, publicValue);
 }
 
-bool OSSLXWingPrivateKey::getPublicValue(ByteString& outPublicValue)
+bool OSSLXWingPrivateKey::getPublicValue(ByteString& publicValue)
 {
-	if (!expandKey()) return false;
-	outPublicValue = publicValue;
+	if (mlkemPkey == NULL || x25519Pkey == NULL) createOSSLKeys();
+	if (this->publicValue.size() != XWingParameters::X_WING_PUB_LENGTH)
+		return false;
+	publicValue = this->publicValue;
 	return true;
 }
 
 EVP_PKEY* OSSLXWingPrivateKey::getOSSLMLKEMKey()
 {
-	return expandKey() ? mlkemKey : NULL;
+	if (mlkemPkey == NULL) createOSSLKeys();
+	return mlkemPkey;
 }
 
 EVP_PKEY* OSSLXWingPrivateKey::getOSSLX25519Key()
 {
-	return expandKey() ? x25519Key : NULL;
+	if (x25519Pkey == NULL) createOSSLKeys();
+	return x25519Pkey;
 }
 
 ByteString OSSLXWingPrivateKey::PKCS8Encode()
 {
 	ByteString der;
-	if (getValue().size() != XWingParameters::PRIVATE_KEY_LENGTH) return der;
+	if (getValue().size() != XWingParameters::X_WING_PRIV_LENGTH) return der;
 
 	PKCS8_PRIV_KEY_INFO* p8 = PKCS8_PRIV_KEY_INFO_new();
 	ASN1_OBJECT* oid = OBJ_txt2obj(X_WING_OID, 1);
@@ -121,7 +220,7 @@ ByteString OSSLXWingPrivateKey::PKCS8Encode()
 		OPENSSL_memdup(getValue().const_byte_str(), getValue().size()));
 	if (p8 == NULL || oid == NULL || privateKey == NULL ||
 		PKCS8_pkey_set0(p8, oid, 0, V_ASN1_UNDEF, NULL, privateKey,
-		                 XWingParameters::PRIVATE_KEY_LENGTH) <= 0)
+		                 XWingParameters::X_WING_PRIV_LENGTH) <= 0)
 	{
 		PKCS8_PRIV_KEY_INFO_free(p8);
 		ASN1_OBJECT_free(oid);
@@ -167,7 +266,8 @@ bool OSSLXWingPrivateKey::PKCS8Decode(const ByteString& ber)
 	const bool valid = extracted && expectedAlgorithm != NULL &&
 		OBJ_cmp(algorithm, expectedAlgorithm) == 0 &&
 		parameterType == V_ASN1_UNDEF &&
-		privateKeyLength == static_cast<int>(XWingParameters::PRIVATE_KEY_LENGTH);
+		privateKeyLength ==
+			static_cast<int>(XWingParameters::X_WING_PRIV_LENGTH);
 
 	if (valid) setValue(ByteString(privateKey, privateKeyLength));
 	ASN1_OBJECT_free(expectedAlgorithm);

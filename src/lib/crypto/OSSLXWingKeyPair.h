@@ -15,22 +15,31 @@
 #include "config.h"
 #ifdef WITH_X_WING
 #include "AsymmetricKeyPair.h"
-#include "OSSLXWingPrivateKey.h"
 #include "OSSLXWingPublicKey.h"
+#include "OSSLXWingPrivateKey.h"
 
 class OSSLXWingKeyPair : public AsymmetricKeyPair
 {
 public:
-	bool setPrivateKeyValue(const ByteString& privateKey);
-	void setPublicKey(const OSSLXWingPublicKey& publicKey);
+	// Set the public key
+	void setPublicKey(OSSLXWingPublicKey& publicKey);
 
+	// Set the private key and derive the public key
+	bool setPrivateKey(OSSLXWingPrivateKey& privateKey);
+
+	// Return the public key
 	virtual PublicKey* getPublicKey();
 	virtual const PublicKey* getConstPublicKey() const;
+
+	// Return the private key
 	virtual PrivateKey* getPrivateKey();
 	virtual const PrivateKey* getConstPrivateKey() const;
 
 private:
+	// The public key
 	OSSLXWingPublicKey pubKey;
+
+	// The private key
 	OSSLXWingPrivateKey privKey;
 };
 

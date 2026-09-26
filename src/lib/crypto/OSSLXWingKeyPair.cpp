@@ -13,24 +13,27 @@
 #ifdef WITH_X_WING
 #include "OSSLXWingKeyPair.h"
 
-bool OSSLXWingKeyPair::setPrivateKeyValue(const ByteString& privateKey)
-{
-	privKey.setValue(privateKey);
-	ByteString publicKey;
-	if (!privKey.getPublicValue(publicKey))
-	{
-		privKey.setValue(ByteString());
-		return false;
-	}
-	pubKey.setValue(publicKey);
-	return true;
-}
-
-void OSSLXWingKeyPair::setPublicKey(const OSSLXWingPublicKey& publicKey)
+// Set the public key
+void OSSLXWingKeyPair::setPublicKey(OSSLXWingPublicKey& publicKey)
 {
 	pubKey.setValue(publicKey.getValue());
 }
 
+// Set the private key and derive the public key
+bool OSSLXWingKeyPair::setPrivateKey(OSSLXWingPrivateKey& privateKey)
+{
+	privKey.setValue(privateKey.getValue());
+	ByteString publicValue;
+	if (!privKey.getPublicValue(publicValue))
+	{
+		privKey.setValue(ByteString());
+		return false;
+	}
+	pubKey.setValue(publicValue);
+	return true;
+}
+
+// Return the public key
 PublicKey* OSSLXWingKeyPair::getPublicKey()
 {
 	return &pubKey;
@@ -41,6 +44,7 @@ const PublicKey* OSSLXWingKeyPair::getConstPublicKey() const
 	return &pubKey;
 }
 
+// Return the private key
 PrivateKey* OSSLXWingKeyPair::getPrivateKey()
 {
 	return &privKey;

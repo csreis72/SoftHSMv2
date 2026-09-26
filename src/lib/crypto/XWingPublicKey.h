@@ -33,16 +33,19 @@ public:
 	// Set the X-Wing public key
 	virtual void setValue(const ByteString& value);
 
-	// Get the X-Wing public key and its components
+	// Get the X-Wing public key value
 	virtual const ByteString& getValue() const;
-	virtual ByteString getMLKEMPublicKey() const;
-	virtual ByteString getX25519PublicKey() const;
+
+	// Get the component public key values
+	virtual ByteString getMLKEMValue() const;
+	virtual ByteString getX25519Value() const;
 
 	// Serialisation
 	virtual ByteString serialise() const;
 	virtual bool deserialise(ByteString& serialised);
 
 protected:
+	// Public key value
 	ByteString value;
 };
 

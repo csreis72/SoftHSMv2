@@ -107,7 +107,6 @@ if(WITH_OPENSSL)
                         OSSLXWingKeyPair.cpp
                         OSSLXWingPrivateKey.cpp
                         OSSLXWingPublicKey.cpp
-                        OSSLXWingUtil.cpp
                         )
 endif(WITH_OPENSSL)
 

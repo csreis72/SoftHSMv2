@@ -30,10 +30,10 @@ public:
 	// Get the bit length
 	virtual unsigned long getBitLength() const;
 
-	// Set the X-Wing private seed
+	// Set the X-Wing private key value
 	virtual void setValue(const ByteString& value);
 
-	// Get the X-Wing private seed
+	// Get the X-Wing private key value
 	virtual const ByteString& getValue() const;
 
 	// Serialisation
@@ -41,6 +41,7 @@ public:
 	virtual bool deserialise(ByteString& serialised);
 
 protected:
+	// Private key value
 	ByteString value;
 };
 

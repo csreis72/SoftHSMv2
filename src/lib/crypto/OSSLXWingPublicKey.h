@@ -20,27 +20,43 @@
 class OSSLXWingPublicKey : public XWingPublicKey
 {
 public:
+	// Constructor
 	OSSLXWingPublicKey();
+
+	// Destructor
 	virtual ~OSSLXWingPublicKey();
 
+	// Non-copyable (raw ownership of EVP_PKEY)
 	OSSLXWingPublicKey(const OSSLXWingPublicKey&) = delete;
 	OSSLXWingPublicKey& operator=(const OSSLXWingPublicKey&) = delete;
-	OSSLXWingPublicKey(OSSLXWingPublicKey&& other) noexcept;
-	OSSLXWingPublicKey& operator=(OSSLXWingPublicKey&& other) noexcept;
 
+	// Movable
+	OSSLXWingPublicKey(OSSLXWingPublicKey&&) noexcept;
+	OSSLXWingPublicKey& operator=(OSSLXWingPublicKey&&) noexcept;
+
+	// The type
 	static const char* type;
+
+	// Check if the key is of the given type
 	virtual bool isOfType(const char* inType);
+
+	// Set the X-Wing public key value
 	virtual void setValue(const ByteString& value);
 
+	// Retrieve the OpenSSL representations of the component keys
 	EVP_PKEY* getOSSLMLKEMKey();
 	EVP_PKEY* getOSSLX25519Key();
 
 private:
-	EVP_PKEY* mlkemKey;
-	EVP_PKEY* x25519Key;
+	// The internal OpenSSL representations
+	EVP_PKEY* mlkemPkey;
+	EVP_PKEY* x25519Pkey;
 
-	bool createOSSLKeys();
-	void invalidateOSSLKeys();
+	// Create the OpenSSL representations from the public key value
+	void createOSSLKeys();
+
+	// Release the OpenSSL representations
+	void resetOSSLKeys();
 };
 
 #endif // WITH_X_WING

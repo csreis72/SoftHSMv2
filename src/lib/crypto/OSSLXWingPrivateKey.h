@@ -20,32 +20,55 @@
 class OSSLXWingPrivateKey : public XWingPrivateKey
 {
 public:
+	// Constructor
 	OSSLXWingPrivateKey();
+
+	// Destructor
 	virtual ~OSSLXWingPrivateKey();
 
+	// Non-copyable (raw ownership of EVP_PKEY)
 	OSSLXWingPrivateKey(const OSSLXWingPrivateKey&) = delete;
 	OSSLXWingPrivateKey& operator=(const OSSLXWingPrivateKey&) = delete;
-	OSSLXWingPrivateKey(OSSLXWingPrivateKey&& other) noexcept;
-	OSSLXWingPrivateKey& operator=(OSSLXWingPrivateKey&& other) noexcept;
 
+	// Movable
+	OSSLXWingPrivateKey(OSSLXWingPrivateKey&&) noexcept;
+	OSSLXWingPrivateKey& operator=(OSSLXWingPrivateKey&&) noexcept;
+
+	// The type
 	static const char* type;
+
+	// Check if the key is of the given type
 	virtual bool isOfType(const char* inType);
+
+	// Set the X-Wing private key value
 	virtual void setValue(const ByteString& value);
 
+	// Encode into PKCS#8 DER
 	virtual ByteString PKCS8Encode();
+
+	// Decode from PKCS#8 BER
 	virtual bool PKCS8Decode(const ByteString& ber);
 
+	// Retrieve the X-Wing public key value
 	bool getPublicValue(ByteString& publicValue);
+
+	// Retrieve the OpenSSL representations of the component keys
 	EVP_PKEY* getOSSLMLKEMKey();
 	EVP_PKEY* getOSSLX25519Key();
 
 private:
-	EVP_PKEY* mlkemKey;
-	EVP_PKEY* x25519Key;
+	// The internal OpenSSL representations
+	EVP_PKEY* mlkemPkey;
+	EVP_PKEY* x25519Pkey;
+
+	// The derived public key value
 	ByteString publicValue;
 
-	bool expandKey();
-	void invalidateExpandedKey();
+	// Create the OpenSSL representations from the private key value
+	void createOSSLKeys();
+
+	// Release the OpenSSL representations and derived public key value
+	void resetOSSLKeys();
 };
 
 #endif // WITH_X_WING

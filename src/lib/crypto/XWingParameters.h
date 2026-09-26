@@ -6,7 +6,7 @@
 /****************************************************************************
  XWingParameters.h
 
- X-Wing parameters (only used for key generation)
+ X-Wing parameters
  *****************************************************************************/
 
 #ifndef _SOFTHSM_V2_XWINGPARAMETERS_H
@@ -28,12 +28,19 @@ public:
 	virtual ByteString serialise() const;
 	virtual bool deserialise(ByteString& serialised);
 
-	static const unsigned long PRIVATE_KEY_LENGTH = 32;
-	static const unsigned long PUBLIC_KEY_LENGTH = 1216;
-	static const unsigned long CIPHERTEXT_LENGTH = 1120;
-	static const unsigned long SHARED_SECRET_LENGTH = 32;
-	static const unsigned long ML_KEM_768_PUBLIC_KEY_LENGTH = 1184;
-	static const unsigned long X25519_PUBLIC_KEY_LENGTH = 32;
+	// X-Wing sizes in bytes, as defined by draft-connolly-cfrg-xwing-kem-10
+	static const unsigned long X_WING_PRIV_LENGTH = 32;
+	static const unsigned long X_WING_PUB_LENGTH = 1216;
+	static const unsigned long X_WING_CIPHERTEXT_LENGTH = 1120;
+	static const unsigned long X_WING_SHARED_SECRET_LENGTH = 32;
+	static const unsigned long X_WING_KEY_DERIVATION_LENGTH = 96;
+
+	// Component sizes in bytes
+	static const unsigned long ML_KEM_768_SEED_LENGTH = 64;
+	static const unsigned long ML_KEM_768_PUB_LENGTH = 1184;
+	static const unsigned long ML_KEM_768_CIPHERTEXT_LENGTH = 1088;
+	static const unsigned long X25519_PRIV_LENGTH = 32;
+	static const unsigned long X25519_PUB_LENGTH = 32;
 };
 
 #endif // !_SOFTHSM_V2_XWINGPARAMETERS_H

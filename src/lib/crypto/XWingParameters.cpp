@@ -6,7 +6,7 @@
 /****************************************************************************
  XWingParameters.cpp
 
- X-Wing parameters (only used for key generation)
+ X-Wing parameters
  *****************************************************************************/
 
 #include "config.h"
@@ -19,7 +19,11 @@
 // Are the parameters of the given type?
 bool XWingParameters::areOfType(const char* inType)
 {
-	return inType != NULL && strcmp(type, inType) == 0;
+	if (inType == NULL)
+	{
+		return false;
+	}
+	return !strcmp(type, inType);
 }
 
 // Serialisation

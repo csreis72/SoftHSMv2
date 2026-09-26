@@ -20,7 +20,11 @@
 // Check if the key is of the given type
 bool XWingPublicKey::isOfType(const char* inType)
 {
-	return inType != NULL && strcmp(type, inType) == 0;
+	if (inType == NULL)
+	{
+		return false;
+	}
+	return !strcmp(type, inType);
 }
 
 // Get the bit length
@@ -32,9 +36,9 @@ unsigned long XWingPublicKey::getBitLength() const
 // Get the ciphertext length
 unsigned long XWingPublicKey::getOutputLength() const
 {
-	if (value.size() == XWingParameters::PUBLIC_KEY_LENGTH)
+	if (value.size() == XWingParameters::X_WING_PUB_LENGTH)
 	{
-		return XWingParameters::CIPHERTEXT_LENGTH;
+		return XWingParameters::X_WING_CIPHERTEXT_LENGTH;
 	}
 	return 0UL;
 }
@@ -49,23 +53,23 @@ const ByteString& XWingPublicKey::getValue() const
 	return value;
 }
 
-ByteString XWingPublicKey::getMLKEMPublicKey() const
+ByteString XWingPublicKey::getMLKEMValue() const
 {
-	if (value.size() != XWingParameters::PUBLIC_KEY_LENGTH)
+	if (value.size() != XWingParameters::X_WING_PUB_LENGTH)
 	{
 		return ByteString();
 	}
-	return value.substr(0, XWingParameters::ML_KEM_768_PUBLIC_KEY_LENGTH);
+	return value.substr(0, XWingParameters::ML_KEM_768_PUB_LENGTH);
 }
 
-ByteString XWingPublicKey::getX25519PublicKey() const
+ByteString XWingPublicKey::getX25519Value() const
 {
-	if (value.size() != XWingParameters::PUBLIC_KEY_LENGTH)
+	if (value.size() != XWingParameters::X_WING_PUB_LENGTH)
 	{
 		return ByteString();
 	}
-	return value.substr(XWingParameters::ML_KEM_768_PUBLIC_KEY_LENGTH,
-	                    XWingParameters::X25519_PUBLIC_KEY_LENGTH);
+	return value.substr(XWingParameters::ML_KEM_768_PUB_LENGTH,
+	                    XWingParameters::X25519_PUB_LENGTH);
 }
 
 // Serialisation
@@ -76,12 +80,13 @@ ByteString XWingPublicKey::serialise() const
 
 bool XWingPublicKey::deserialise(ByteString& serialised)
 {
-	ByteString deserialisedValue = ByteString::chainDeserialise(serialised);
-	if (deserialisedValue.size() != XWingParameters::PUBLIC_KEY_LENGTH)
+	ByteString deserializedValue = ByteString::chainDeserialise(serialised);
+	const size_t valueLen = deserializedValue.size();
+	if (valueLen != XWingParameters::X_WING_PUB_LENGTH)
 	{
 		return false;
 	}
 
-	setValue(deserialisedValue);
+	setValue(deserializedValue);
 	return true;
 }
