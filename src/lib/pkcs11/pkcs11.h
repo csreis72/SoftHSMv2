@@ -1296,6 +1296,7 @@ extern "C" {
 #define CKM_PUB_KEY_FROM_PRIV_KEY               (0x403AUL)
 #define CKM_VENDOR_DEFINED                      ((unsigned long) (1UL << 31))
 #define CKM_X_WING_KEY_PAIR_GEN                 (CKM_VENDOR_DEFINED | 0x00000003UL)
+#define CKM_X_WING                              (CKM_VENDOR_DEFINED | 0x00000004UL)
 
 /* CK_NOTIFICATION */
 #define CKN_SURRENDER                           (0UL)

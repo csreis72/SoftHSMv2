@@ -275,15 +275,20 @@ void InfoTests::testGetMechanismList()
 	CPPUNIT_ASSERT(rv == CKR_OK);
 #ifdef WITH_X_WING
 	bool xWingKeyPairGenerationFound = false;
+	bool xWingEncapsulationFound = false;
 	for (CK_ULONG i = 0; i < ulMechCount; ++i)
 	{
 		if (pMechanismList[i] == CKM_X_WING_KEY_PAIR_GEN)
 		{
 			xWingKeyPairGenerationFound = true;
-			break;
+		}
+		else if (pMechanismList[i] == CKM_X_WING)
+		{
+			xWingEncapsulationFound = true;
 		}
 	}
 	CPPUNIT_ASSERT(xWingKeyPairGenerationFound);
+	CPPUNIT_ASSERT(xWingEncapsulationFound);
 #endif
 	free(pMechanismList);
 
@@ -335,6 +340,12 @@ void InfoTests::testGetMechanismInfo()
 	CPPUNIT_ASSERT_EQUAL((CK_ULONG)32, info.ulMinKeySize);
 	CPPUNIT_ASSERT_EQUAL((CK_ULONG)32, info.ulMaxKeySize);
 	CPPUNIT_ASSERT_EQUAL((CK_FLAGS)CKF_GENERATE_KEY_PAIR, info.flags);
+
+	rv = CRYPTOKI_F_PTR( C_GetMechanismInfo(m_initializedTokenSlotID, CKM_X_WING, &info) );
+	CPPUNIT_ASSERT_EQUAL(CKR_OK, rv);
+	CPPUNIT_ASSERT_EQUAL((CK_ULONG)32, info.ulMinKeySize);
+	CPPUNIT_ASSERT_EQUAL((CK_ULONG)32, info.ulMaxKeySize);
+	CPPUNIT_ASSERT_EQUAL((CK_FLAGS)CKF_ENCAPSULATE, info.flags);
 #endif
 
 	free(pMechanismList);

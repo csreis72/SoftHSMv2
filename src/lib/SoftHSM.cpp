@@ -889,6 +889,7 @@ void SoftHSM::prepareSupportedMechanisms(std::map<std::string, CK_MECHANISM_TYPE
 #endif
 #ifdef WITH_X_WING
 	t["CKM_X_WING_KEY_PAIR_GEN"] = CKM_X_WING_KEY_PAIR_GEN;
+	t["CKM_X_WING"] = CKM_X_WING;
 #endif
 	t["CKM_CONCATENATE_DATA_AND_BASE"] = CKM_CONCATENATE_DATA_AND_BASE;
 	t["CKM_CONCATENATE_BASE_AND_DATA"] = CKM_CONCATENATE_BASE_AND_DATA;
@@ -1459,6 +1460,11 @@ CK_RV SoftHSM::C_GetMechanismInfo(CK_SLOT_ID slotID, CK_MECHANISM_TYPE type, CK_
 			pInfo->ulMinKeySize = xwingMinSize;
 			pInfo->ulMaxKeySize = xwingMaxSize;
 			pInfo->flags = CKF_GENERATE_KEY_PAIR;
+			break;
+		case CKM_X_WING:
+			pInfo->ulMinKeySize = xwingMinSize;
+			pInfo->ulMaxKeySize = xwingMaxSize;
+			pInfo->flags = CKF_ENCAPSULATE;
 			break;
 #endif
 	    case CKM_CONCATENATE_DATA_AND_BASE:
