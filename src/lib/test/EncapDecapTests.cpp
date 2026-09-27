@@ -14,14 +14,112 @@
 #include <string.h>
 #include "EncapDecapTests.h"
 
-#ifdef WITH_ML_KEM
+#if defined(WITH_ML_KEM) || defined(WITH_X_WING)
 const CK_BBOOL IN_SESSION = CK_FALSE;
 
 const CK_BBOOL IS_PRIVATE = CK_TRUE;
 const CK_BBOOL IS_PUBLIC = CK_FALSE;
 #endif
+#ifdef WITH_X_WING
+const CK_ULONG X_WING_CIPHERTEXT_LENGTH = 1120;
+#endif
 
 CPPUNIT_TEST_SUITE_REGISTRATION(EncapDecapTests);
+
+#ifdef WITH_X_WING
+CK_RV EncapDecapTests::generateXWing(CK_SESSION_HANDLE hSession, CK_BBOOL bTokenPuk, CK_BBOOL bPrivatePuk, CK_BBOOL bTokenPrk, CK_BBOOL bPrivatePrk, CK_OBJECT_HANDLE &hPuk, CK_OBJECT_HANDLE &hPrk)
+{
+	CK_MECHANISM mechanism = { CKM_X_WING_KEY_PAIR_GEN, NULL_PTR, 0 };
+	CK_KEY_TYPE keyType = CKK_X_WING;
+	CK_BYTE label[] = { 0x12, 0x34 };
+	CK_BYTE id[] = { 123 };
+	CK_BBOOL bFalse = CK_FALSE;
+	CK_BBOOL bTrue = CK_TRUE;
+	CK_ATTRIBUTE pukAttribs[] = {
+		{ CKA_LABEL, &label[0], sizeof(label) },
+		{ CKA_ID, &id[0], sizeof(id) },
+		{ CKA_KEY_TYPE, &keyType, sizeof(keyType) },
+		{ CKA_ENCAPSULATE, &bTrue, sizeof(bTrue) },
+		{ CKA_TOKEN, &bTokenPuk, sizeof(bTokenPuk) },
+		{ CKA_PRIVATE, &bPrivatePuk, sizeof(bPrivatePuk) }
+	};
+	CK_ATTRIBUTE prkAttribs[] = {
+		{ CKA_LABEL, &label[0], sizeof(label) },
+		{ CKA_ID, &id[0], sizeof(id) },
+		{ CKA_KEY_TYPE, &keyType, sizeof(keyType) },
+		{ CKA_DECAPSULATE, &bTrue, sizeof(bTrue) },
+		{ CKA_SENSITIVE, &bTrue, sizeof(bTrue) },
+		{ CKA_TOKEN, &bTokenPrk, sizeof(bTokenPrk) },
+		{ CKA_PRIVATE, &bPrivatePrk, sizeof(bPrivatePrk) },
+		{ CKA_EXTRACTABLE, &bFalse, sizeof(bFalse) }
+	};
+
+	hPuk = CK_INVALID_HANDLE;
+	hPrk = CK_INVALID_HANDLE;
+	return CRYPTOKI_F_PTR( C_GenerateKeyPair(hSession, &mechanism,
+		pukAttribs, sizeof(pukAttribs) / sizeof(CK_ATTRIBUTE),
+		prkAttribs, sizeof(prkAttribs) / sizeof(CK_ATTRIBUTE),
+		&hPuk, &hPrk) );
+}
+
+void EncapDecapTests::testXWingEncapsulation()
+{
+	CRYPTOKI_F_PTR( C_Finalize(NULL_PTR) );
+
+	CK_RV rv = CRYPTOKI_F_PTR( C_Initialize(NULL_PTR) );
+	CPPUNIT_ASSERT(rv == CKR_OK);
+
+	CK_SESSION_HANDLE hSession;
+	rv = CRYPTOKI_F_PTR( C_OpenSession(m_initializedTokenSlotID, CKF_SERIAL_SESSION | CKF_RW_SESSION, NULL_PTR, NULL_PTR, &hSession) );
+	CPPUNIT_ASSERT(rv == CKR_OK);
+
+	rv = CRYPTOKI_F_PTR( C_Login(hSession, CKU_USER, m_userPin1, m_userPin1Length) );
+	CPPUNIT_ASSERT(rv == CKR_OK);
+
+	CK_OBJECT_HANDLE hPuk = CK_INVALID_HANDLE;
+	CK_OBJECT_HANDLE hPrk = CK_INVALID_HANDLE;
+	rv = generateXWing(hSession, IN_SESSION, IS_PUBLIC, IN_SESSION, IS_PRIVATE, hPuk, hPrk);
+	CPPUNIT_ASSERT(rv == CKR_OK);
+
+	CK_MECHANISM mechanism = { CKM_X_WING, NULL_PTR, 0 };
+	CK_OBJECT_CLASS keyClass = CKO_SECRET_KEY;
+	CK_KEY_TYPE keyType = CKK_AES;
+	CK_BBOOL bTrue = CK_TRUE;
+	CK_ATTRIBUTE keyAttribs[] = {
+		{ CKA_CLASS, &keyClass, sizeof(keyClass) },
+		{ CKA_KEY_TYPE, &keyType, sizeof(keyType) },
+		{ CKA_ENCRYPT, &bTrue, sizeof(bTrue) },
+		{ CKA_DECRYPT, &bTrue, sizeof(bTrue) }
+	};
+
+	CK_OBJECT_HANDLE hEncapKey = CK_INVALID_HANDLE;
+	CK_ULONG ulCipherTextLen = 0;
+	rv = CRYPTOKI_F_PTR( C_EncapsulateKey(hSession, &mechanism, hPuk,
+		keyAttribs, sizeof(keyAttribs) / sizeof(CK_ATTRIBUTE),
+		NULL_PTR, &ulCipherTextLen, &hEncapKey) );
+	CPPUNIT_ASSERT(rv == CKR_OK);
+	CPPUNIT_ASSERT(ulCipherTextLen == X_WING_CIPHERTEXT_LENGTH);
+	CPPUNIT_ASSERT(hEncapKey == CK_INVALID_HANDLE);
+
+	CK_BYTE cipherText[X_WING_CIPHERTEXT_LENGTH];
+	rv = CRYPTOKI_F_PTR( C_EncapsulateKey(hSession, &mechanism, hPuk,
+		keyAttribs, sizeof(keyAttribs) / sizeof(CK_ATTRIBUTE),
+		cipherText, &ulCipherTextLen, &hEncapKey) );
+	CPPUNIT_ASSERT(rv == CKR_OK);
+	CPPUNIT_ASSERT(ulCipherTextLen == X_WING_CIPHERTEXT_LENGTH);
+	CPPUNIT_ASSERT(hEncapKey != CK_INVALID_HANDLE);
+
+	rv = CRYPTOKI_F_PTR( C_DestroyObject(hSession, hEncapKey) );
+	CPPUNIT_ASSERT(rv == CKR_OK);
+	rv = CRYPTOKI_F_PTR( C_DestroyObject(hSession, hPuk) );
+	CPPUNIT_ASSERT(rv == CKR_OK);
+	rv = CRYPTOKI_F_PTR( C_DestroyObject(hSession, hPrk) );
+	CPPUNIT_ASSERT(rv == CKR_OK);
+	rv = CRYPTOKI_F_PTR( C_CloseSession(hSession) );
+	CPPUNIT_ASSERT(rv == CKR_OK);
+}
+
+#endif
 
 #ifdef WITH_ML_KEM
 CK_RV EncapDecapTests::generateMLKEM(CK_ULONG parameterSet, CK_SESSION_HANDLE hSession, CK_BBOOL bTokenPuk, CK_BBOOL bPrivatePuk, CK_BBOOL bTokenPrk, CK_BBOOL bPrivatePrk, CK_OBJECT_HANDLE &hPuk, CK_OBJECT_HANDLE &hPrk)

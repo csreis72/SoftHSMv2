@@ -27,6 +27,9 @@ class EncapDecapTests : public TestsBase
 	CPPUNIT_TEST(testMLKEMDecapsulationCiphertextIsNull);
 	CPPUNIT_TEST(testMLKEMDecapsulationCiphertextLengthIsZero);
 #endif
+#ifdef WITH_X_WING
+	CPPUNIT_TEST(testXWingEncapsulation);
+#endif
 	CPPUNIT_TEST_SUITE_END();
 
 public:
@@ -38,10 +41,16 @@ public:
 	void testMLKEMDecapsulationCiphertextIsNull();
 	void testMLKEMDecapsulationCiphertextLengthIsZero();
 #endif
+#ifdef WITH_X_WING
+	void testXWingEncapsulation();
+#endif
 
 protected:
 #ifdef WITH_ML_KEM
 	CK_RV generateMLKEM(CK_ULONG parameterSet, CK_SESSION_HANDLE hSession, CK_BBOOL bTokenPuk, CK_BBOOL bPrivatePuk, CK_BBOOL bTokenPrk, CK_BBOOL bPrivatePrk, CK_OBJECT_HANDLE &hPuk, CK_OBJECT_HANDLE &hPrk);
+#endif
+#ifdef WITH_X_WING
+	CK_RV generateXWing(CK_SESSION_HANDLE hSession, CK_BBOOL bTokenPuk, CK_BBOOL bPrivatePuk, CK_BBOOL bTokenPrk, CK_BBOOL bPrivatePrk, CK_OBJECT_HANDLE &hPuk, CK_OBJECT_HANDLE &hPrk);
 #endif
 
 };

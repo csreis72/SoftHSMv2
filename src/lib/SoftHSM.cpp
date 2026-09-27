@@ -8381,7 +8381,7 @@ CK_RV SoftHSM::C_WaitForSlotEvent(CK_FLAGS flags, CK_SLOT_ID_PTR /*pSlot*/, CK_V
 	return CKR_NO_EVENT;
 }
 
-#ifdef WITH_ML_KEM
+#if defined(WITH_ML_KEM) || defined(WITH_X_WING)
 // Wrap the specified key using the specified wrapping key and mechanism
 CK_RV SoftHSM::C_EncapsulateKey
 	(
@@ -8476,10 +8476,18 @@ CK_RV SoftHSM::C_EncapsulateKey
 	// Check the mechanism, only accept advanced ML-KEM
 	switch(pMechanism->mechanism)
 	{
+#ifdef WITH_ML_KEM
 		case CKM_ML_KEM:
 			algo = AsymAlgo::MLKEM;
 			mech = AsymMech::MLKEM;
 			break;
+#endif
+#ifdef WITH_X_WING
+		case CKM_X_WING:
+			algo = AsymAlgo::XWING;
+			mech = AsymMech::XWING;
+			break;
+#endif
 		default:
 			return CKR_MECHANISM_INVALID;
 	}
@@ -8492,16 +8500,47 @@ CK_RV SoftHSM::C_EncapsulateKey
 
 	PublicKey* publicKey = cipher->newPublicKey();
 
-	if (MLKEMUtil::getMLKEMPublicKey((MLKEMPublicKey*)publicKey, token, encapsulationKey) != CKR_OK)
+#ifdef WITH_ML_KEM
+	if (algo == AsymAlgo::MLKEM)
 	{
-		cipher->recyclePublicKey(publicKey);
-		CryptoFactory::i()->recycleAsymmetricAlgorithm(cipher);
-		return CKR_GENERAL_ERROR;
+		if (MLKEMUtil::getMLKEMPublicKey((MLKEMPublicKey*)publicKey, token, encapsulationKey) != CKR_OK)
+		{
+			cipher->recyclePublicKey(publicKey);
+			CryptoFactory::i()->recycleAsymmetricAlgorithm(cipher);
+			return CKR_GENERAL_ERROR;
+		}
 	}
+#endif
+#ifdef WITH_X_WING
+	if (algo == AsymAlgo::XWING)
+	{
+		ByteString value = encapsulationKey->getByteStringValue(CKA_VALUE);
+		if (isEncapsulationKeyPrivate)
+		{
+			ByteString decryptedValue;
+			if (!token->decrypt(value, decryptedValue))
+			{
+				cipher->recyclePublicKey(publicKey);
+				CryptoFactory::i()->recycleAsymmetricAlgorithm(cipher);
+				return CKR_GENERAL_ERROR;
+			}
+			else
+				value = decryptedValue;
+		}
+
+		if (value.size() != XWingParameters::X_WING_PUB_LENGTH)
+		{
+			cipher->recyclePublicKey(publicKey);
+			CryptoFactory::i()->recycleAsymmetricAlgorithm(cipher);
+			return CKR_GENERAL_ERROR;
+		}
+		((XWingPublicKey*)publicKey)->setValue(value);
+	}
+#endif
 
 	if (pCipherText == NULL_PTR)
 	{
-		unsigned long ctLen = ((MLKEMPublicKey*)publicKey)->getOutputLength();
+		unsigned long ctLen = publicKey->getOutputLength();
 		cipher->recyclePublicKey(publicKey);
 		CryptoFactory::i()->recycleAsymmetricAlgorithm(cipher);
 		if (ctLen == 0) return CKR_GENERAL_ERROR;
