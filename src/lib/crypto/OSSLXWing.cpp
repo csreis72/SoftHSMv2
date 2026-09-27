@@ -11,6 +11,7 @@
 
 #include "config.h"
 #ifdef WITH_X_WING
+#include "AESKey.h"
 #include "CryptoFactory.h"
 #include "log.h"
 #include "OSSLXWing.h"
@@ -18,6 +19,13 @@
 #include "XWingParameters.h"
 #include <openssl/crypto.h>
 #include <openssl/err.h>
+
+namespace
+{
+const unsigned char X_WING_LABEL[] = {
+	0x5c, 0x2e, 0x2f, 0x2f, 0x5e, 0x5c
+};
+}
 
 bool OSSLXWing::encapsulateMLKEM(EVP_PKEY* mlkemPkey,
 	ByteString& cipherText, ByteString& sharedSecret)
@@ -123,10 +131,10 @@ bool OSSLXWing::encapsulateComponents(EVP_PKEY* mlkemPkey,
 	if (mlkemPkey == NULL || x25519Pkey == NULL) return false;
 	if (rng == NULL) rng = CryptoFactory::i()->getRNG();
 
-	if (encapsulateMLKEM(mlkemPkey, mlkemCipherText,
-	                    mlkemSharedSecret) &&
-		encapsulateX25519(x25519Pkey, x25519CipherText,
-		                   x25519SharedSecret, rng))
+	if (encapsulateX25519(x25519Pkey, x25519CipherText,
+	                    x25519SharedSecret, rng) &&
+		encapsulateMLKEM(mlkemPkey, mlkemCipherText,
+		                 mlkemSharedSecret))
 	{
 		return true;
 	}
@@ -136,6 +144,127 @@ bool OSSLXWing::encapsulateComponents(EVP_PKEY* mlkemPkey,
 	x25519CipherText.wipe();
 	x25519SharedSecret.wipe();
 	return false;
+}
+
+bool OSSLXWing::combineSharedSecrets(const ByteString& mlkemSharedSecret,
+	const ByteString& x25519SharedSecret,
+	const ByteString& x25519CipherText,
+	const ByteString& x25519PublicKey, ByteString& sharedSecret)
+{
+	sharedSecret.wipe();
+	if (mlkemSharedSecret.size() !=
+			XWingParameters::X_WING_SHARED_SECRET_LENGTH ||
+		x25519SharedSecret.size() !=
+			XWingParameters::X_WING_SHARED_SECRET_LENGTH ||
+		x25519CipherText.size() != XWingParameters::X25519_PUB_LENGTH ||
+		x25519PublicKey.size() != XWingParameters::X25519_PUB_LENGTH)
+	{
+		return false;
+	}
+
+	EVP_MD* sha3 = EVP_MD_fetch(NULL, "SHA3-256", NULL);
+	EVP_MD_CTX* ctx = EVP_MD_CTX_new();
+	unsigned int sharedSecretLen = 0;
+	sharedSecret.resize(XWingParameters::X_WING_SHARED_SECRET_LENGTH);
+	const bool rv = sha3 != NULL && ctx != NULL &&
+		EVP_DigestInit_ex(ctx, sha3, NULL) > 0 &&
+		EVP_DigestUpdate(ctx, mlkemSharedSecret.const_byte_str(),
+		                 mlkemSharedSecret.size()) > 0 &&
+		EVP_DigestUpdate(ctx, x25519SharedSecret.const_byte_str(),
+		                 x25519SharedSecret.size()) > 0 &&
+		EVP_DigestUpdate(ctx, x25519CipherText.const_byte_str(),
+		                 x25519CipherText.size()) > 0 &&
+		EVP_DigestUpdate(ctx, x25519PublicKey.const_byte_str(),
+		                 x25519PublicKey.size()) > 0 &&
+		EVP_DigestUpdate(ctx, X_WING_LABEL, sizeof(X_WING_LABEL)) > 0 &&
+		EVP_DigestFinal_ex(ctx, sharedSecret.byte_str(),
+		                   &sharedSecretLen) > 0 &&
+		sharedSecretLen == XWingParameters::X_WING_SHARED_SECRET_LENGTH;
+	EVP_MD_CTX_free(ctx);
+	EVP_MD_free(sha3);
+
+	if (!rv)
+	{
+		ERROR_MSG("Could not combine the X-Wing shared secrets "
+		          "(0x%08lX)", ERR_get_error());
+		sharedSecret.wipe();
+	}
+	return rv;
+}
+
+bool OSSLXWing::encapsulate(PublicKey* publicKey, ByteString& cipherText,
+	SymmetricKey** secretKey, CK_KEY_TYPE keyType,
+	const AsymMech::Type /*mechanism*/)
+{
+	cipherText.wipe();
+	if (secretKey == NULL)
+	{
+		ERROR_MSG("Invalid X-Wing secret key output");
+		return false;
+	}
+	*secretKey = NULL;
+	if (publicKey == NULL ||
+		!publicKey->isOfType(OSSLXWingPublicKey::type))
+	{
+		ERROR_MSG("Invalid X-Wing public key input");
+		return false;
+	}
+
+	OSSLXWingPublicKey* xwingPublicKey =
+		static_cast<OSSLXWingPublicKey*>(publicKey);
+	EVP_PKEY* mlkemPkey = xwingPublicKey->getOSSLMLKEMKey();
+	EVP_PKEY* x25519Pkey = xwingPublicKey->getOSSLX25519Key();
+	if (mlkemPkey == NULL || x25519Pkey == NULL)
+	{
+		ERROR_MSG("Could not get the OpenSSL X-Wing public key components");
+		return false;
+	}
+
+	ByteString mlkemCipherText;
+	ByteString mlkemSharedSecret;
+	ByteString x25519CipherText;
+	ByteString x25519SharedSecret;
+	ByteString sharedSecret;
+	const ByteString x25519PublicKey = xwingPublicKey->getX25519Value();
+	bool rv = encapsulateComponents(mlkemPkey, x25519Pkey,
+	                                mlkemCipherText, mlkemSharedSecret,
+	                                x25519CipherText, x25519SharedSecret) &&
+		combineSharedSecrets(mlkemSharedSecret, x25519SharedSecret,
+		                     x25519CipherText, x25519PublicKey,
+		                     sharedSecret);
+
+	if (rv)
+	{
+		cipherText = mlkemCipherText + x25519CipherText;
+		rv = cipherText.size() == XWingParameters::X_WING_CIPHERTEXT_LENGTH;
+	}
+
+	SymmetricKey* outputKey = NULL;
+	if (rv)
+	{
+		const size_t bitLength =
+			XWingParameters::X_WING_SHARED_SECRET_LENGTH * 8;
+		if (keyType == CKK_AES)
+			outputKey = new AESKey(bitLength);
+		else
+			outputKey = new SymmetricKey(bitLength);
+		rv = outputKey->setKeyBits(sharedSecret);
+	}
+
+	mlkemCipherText.wipe();
+	mlkemSharedSecret.wipe();
+	x25519CipherText.wipe();
+	x25519SharedSecret.wipe();
+	sharedSecret.wipe();
+	if (!rv)
+	{
+		delete outputKey;
+		cipherText.wipe();
+		return false;
+	}
+
+	*secretKey = outputKey;
+	return true;
 }
 
 bool OSSLXWing::encrypt(PublicKey* /*publicKey*/, const ByteString& /*data*/,

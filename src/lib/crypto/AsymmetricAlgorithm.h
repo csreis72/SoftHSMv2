@@ -101,7 +101,8 @@ struct AsymMech
 		GOST_GOST,
 		EDDSA,
 		MLDSA,
-		MLKEM
+		MLKEM,
+		XWING
 	};
 };
 
@@ -197,4 +198,3 @@ private:
 };
 
 #endif // !_SOFTHSM_V2_ASYMMETRICALGORITHM_H
-

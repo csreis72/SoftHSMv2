@@ -28,6 +28,11 @@ public:
 	                     ByteString& encryptedData, const AsymMech::Type padding,
 	                     const MechanismParam* mechanismParam = NULL);
 
+	// Encapsulation functions
+	virtual bool encapsulate(PublicKey* publicKey, ByteString& cipherText,
+	                         SymmetricKey** secretKey, CK_KEY_TYPE keyType,
+	                         const AsymMech::Type mechanism);
+
 	// Decryption functions
 	virtual bool decrypt(PrivateKey* privateKey, const ByteString& encryptedData,
 	                     ByteString& data, const AsymMech::Type padding,
@@ -64,6 +69,13 @@ private:
 	                           ByteString& x25519CipherText,
 	                           ByteString& x25519SharedSecret,
 	                           RNG* rng = NULL);
+
+	// X-Wing combiner
+	bool combineSharedSecrets(const ByteString& mlkemSharedSecret,
+	                          const ByteString& x25519SharedSecret,
+	                          const ByteString& x25519CipherText,
+	                          const ByteString& x25519PublicKey,
+	                          ByteString& sharedSecret);
 };
 
 #endif // WITH_X_WING
