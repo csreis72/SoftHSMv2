@@ -29,6 +29,8 @@ class EncapDecapTests : public TestsBase
 #endif
 #ifdef WITH_X_WING
 	CPPUNIT_TEST(testXWingEncapsulation);
+	CPPUNIT_TEST(testXWingEncapsulationBufferTooSmall);
+	CPPUNIT_TEST(testXWingEncapsulationInvalidInputs);
 #endif
 	CPPUNIT_TEST_SUITE_END();
 
@@ -43,6 +45,8 @@ public:
 #endif
 #ifdef WITH_X_WING
 	void testXWingEncapsulation();
+	void testXWingEncapsulationBufferTooSmall();
+	void testXWingEncapsulationInvalidInputs();
 #endif
 
 protected:
@@ -51,6 +55,7 @@ protected:
 #endif
 #ifdef WITH_X_WING
 	CK_RV generateXWing(CK_SESSION_HANDLE hSession, CK_BBOOL bTokenPuk, CK_BBOOL bPrivatePuk, CK_BBOOL bTokenPrk, CK_BBOOL bPrivatePrk, CK_OBJECT_HANDLE &hPuk, CK_OBJECT_HANDLE &hPrk);
+	void encapsulateXWing(CK_SESSION_HANDLE hSession, CK_OBJECT_HANDLE hPublicKey);
 #endif
 
 };

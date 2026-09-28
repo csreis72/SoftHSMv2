@@ -15,6 +15,7 @@
 #include "CryptoFactory.h"
 #include "SymmetricKey.h"
 #include "XWingParameters.h"
+#include "XWingPublicKey.h"
 #include "XWingTests.h"
 
 CPPUNIT_TEST_SUITE_REGISTRATION(XWingTests);
@@ -56,6 +57,36 @@ void XWingTests::testEncapsulation()
 		secretKey->getBitLen());
 
 	xWing->recycleSymmetricKey(secretKey);
+	xWing->recycleKeyPair(keyPair);
+	xWing->recycleParameters(parameters);
+}
+
+void XWingTests::testEncapsulationInvalidInputs()
+{
+	XWingParameters* parameters = new XWingParameters();
+	AsymmetricKeyPair* keyPair = NULL;
+	CPPUNIT_ASSERT(xWing->generateKeyPair(&keyPair, parameters));
+
+	ByteString cipherText;
+	SymmetricKey* secretKey = NULL;
+	CPPUNIT_ASSERT(!xWing->encapsulate(NULL, cipherText, &secretKey,
+	                                  CKK_AES, AsymMech::XWING));
+	CPPUNIT_ASSERT(secretKey == NULL);
+	CPPUNIT_ASSERT(!xWing->encapsulate(keyPair->getPublicKey(), cipherText,
+	                                  NULL, CKK_AES, AsymMech::XWING));
+
+	XWingPublicKey* invalidPublicKey =
+		static_cast<XWingPublicKey*>(xWing->newPublicKey());
+	ByteString invalidValue;
+	invalidValue.resize(XWingParameters::X_WING_PUB_LENGTH - 1);
+	invalidPublicKey->setValue(invalidValue);
+	CPPUNIT_ASSERT(!xWing->encapsulate(invalidPublicKey, cipherText,
+	                                  &secretKey, CKK_AES,
+	                                  AsymMech::XWING));
+	CPPUNIT_ASSERT(secretKey == NULL);
+	CPPUNIT_ASSERT(cipherText.size() == 0);
+
+	xWing->recyclePublicKey(invalidPublicKey);
 	xWing->recycleKeyPair(keyPair);
 	xWing->recycleParameters(parameters);
 }

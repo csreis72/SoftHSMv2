@@ -8399,6 +8399,7 @@ CK_RV SoftHSM::C_EncapsulateKey
 
 	if (pMechanism == NULL_PTR) return CKR_ARGUMENTS_BAD;
 	if (hPublicKey == NULL_PTR) return CKR_ARGUMENTS_BAD;
+	if (pulCipherTextLen == NULL_PTR) return CKR_ARGUMENTS_BAD;
 	if (phKey == NULL_PTR) return CKR_ARGUMENTS_BAD;
 
 	*phKey = CK_INVALID_HANDLE;
@@ -8484,6 +8485,8 @@ CK_RV SoftHSM::C_EncapsulateKey
 #endif
 #ifdef WITH_X_WING
 		case CKM_X_WING:
+			if (encapsulationKey->getUnsignedLongValue(CKA_KEY_TYPE, CKK_VENDOR_DEFINED) != CKK_X_WING)
+				return CKR_KEY_TYPE_INCONSISTENT;
 			algo = AsymAlgo::XWING;
 			mech = AsymMech::XWING;
 			break;
@@ -8538,14 +8541,27 @@ CK_RV SoftHSM::C_EncapsulateKey
 	}
 #endif
 
-	if (pCipherText == NULL_PTR)
+	unsigned long ctLen = publicKey->getOutputLength();
+	if (ctLen == 0)
 	{
-		unsigned long ctLen = publicKey->getOutputLength();
 		cipher->recyclePublicKey(publicKey);
 		CryptoFactory::i()->recycleAsymmetricAlgorithm(cipher);
-		if (ctLen == 0) return CKR_GENERAL_ERROR;
+		return CKR_GENERAL_ERROR;
+	}
+
+	if (pCipherText == NULL_PTR)
+	{
+		cipher->recyclePublicKey(publicKey);
+		CryptoFactory::i()->recycleAsymmetricAlgorithm(cipher);
 		*pulCipherTextLen = ctLen;
 		return CKR_OK;
+	}
+	if (*pulCipherTextLen < ctLen)
+	{
+		cipher->recyclePublicKey(publicKey);
+		CryptoFactory::i()->recycleAsymmetricAlgorithm(cipher);
+		*pulCipherTextLen = ctLen;
+		return CKR_BUFFER_TOO_SMALL;
 	}
 
 	SymmetricKey *secret = NULL;
