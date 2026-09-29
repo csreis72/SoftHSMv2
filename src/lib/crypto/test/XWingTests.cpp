@@ -61,6 +61,34 @@ void XWingTests::testEncapsulation()
 	xWing->recycleParameters(parameters);
 }
 
+void XWingTests::testEncapsulationDecapsulation()
+{
+	XWingParameters* parameters = new XWingParameters();
+	AsymmetricKeyPair* keyPair = NULL;
+	CPPUNIT_ASSERT(xWing->generateKeyPair(&keyPair, parameters));
+
+	ByteString cipherText;
+	SymmetricKey* encapsulatedKey = NULL;
+	SymmetricKey* decapsulatedKey = NULL;
+	CPPUNIT_ASSERT(xWing->encapsulate(keyPair->getPublicKey(), cipherText,
+	                                  &encapsulatedKey, CKK_AES,
+	                                  AsymMech::XWING));
+	CPPUNIT_ASSERT(xWing->decapsulate(keyPair->getPrivateKey(), cipherText,
+	                                  &decapsulatedKey, CKK_AES,
+	                                  AsymMech::XWING));
+	CPPUNIT_ASSERT(decapsulatedKey != NULL);
+	CPPUNIT_ASSERT(encapsulatedKey->getKeyBits() ==
+	               decapsulatedKey->getKeyBits());
+	CPPUNIT_ASSERT_EQUAL(
+		static_cast<size_t>(XWingParameters::X_WING_SHARED_SECRET_LENGTH),
+		decapsulatedKey->getKeyBits().size());
+
+	xWing->recycleSymmetricKey(encapsulatedKey);
+	xWing->recycleSymmetricKey(decapsulatedKey);
+	xWing->recycleKeyPair(keyPair);
+	xWing->recycleParameters(parameters);
+}
+
 void XWingTests::testEncapsulationInvalidInputs()
 {
 	XWingParameters* parameters = new XWingParameters();

@@ -28,8 +28,12 @@ public:
 	                     ByteString& encryptedData, const AsymMech::Type padding,
 	                     const MechanismParam* mechanismParam = NULL);
 
-	// Encapsulation functions
+	// Encapsulate/Decapsulate functions
 	virtual bool encapsulate(PublicKey* publicKey, ByteString& cipherText,
+	                         SymmetricKey** secretKey, CK_KEY_TYPE keyType,
+	                         const AsymMech::Type mechanism);
+	virtual bool decapsulate(PrivateKey* privateKey,
+	                         const ByteString& cipherText,
 	                         SymmetricKey** secretKey, CK_KEY_TYPE keyType,
 	                         const AsymMech::Type mechanism);
 
@@ -57,7 +61,7 @@ public:
 	virtual AsymmetricParameters* newParameters();
 
 private:
-	// Component encapsulation functions
+	// Component encapsulation/decapsulation functions
 	bool encapsulateMLKEM(EVP_PKEY* mlkemPkey, ByteString& cipherText,
 	                     ByteString& sharedSecret);
 	bool encapsulateX25519(EVP_PKEY* x25519Pkey, ByteString& cipherText,
@@ -69,6 +73,12 @@ private:
 	                           ByteString& x25519CipherText,
 	                           ByteString& x25519SharedSecret,
 	                           RNG* rng = NULL);
+	bool decapsulateMLKEM(EVP_PKEY* mlkemPkey,
+	                     const ByteString& cipherText,
+	                     ByteString& sharedSecret);
+	bool decapsulateX25519(EVP_PKEY* x25519Pkey,
+	                      const ByteString& cipherText,
+	                      ByteString& sharedSecret);
 
 	// X-Wing combiner
 	bool combineSharedSecrets(const ByteString& mlkemSharedSecret,

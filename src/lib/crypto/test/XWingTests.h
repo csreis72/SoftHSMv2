@@ -19,12 +19,14 @@ class XWingTests : public CppUnit::TestFixture
 {
 	CPPUNIT_TEST_SUITE(XWingTests);
 	CPPUNIT_TEST(testEncapsulation);
+	CPPUNIT_TEST(testEncapsulationDecapsulation);
 	CPPUNIT_TEST(testEncapsulationInvalidInputs);
 	CPPUNIT_TEST_SUITE_END();
 
 public:
 	XWingTests() : xWing(NULL) {}
 	void testEncapsulation();
+	void testEncapsulationDecapsulation();
 	void testEncapsulationInvalidInputs();
 
 	void setUp();
