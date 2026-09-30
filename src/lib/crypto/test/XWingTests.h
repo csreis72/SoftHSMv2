@@ -21,6 +21,9 @@ class XWingTests : public CppUnit::TestFixture
 	CPPUNIT_TEST(testEncapsulation);
 	CPPUNIT_TEST(testEncapsulationDecapsulation);
 	CPPUNIT_TEST(testEncapsulationInvalidInputs);
+	CPPUNIT_TEST(testKeyGenerationTestVector);
+	CPPUNIT_TEST(testEncapsulationTestVector);
+	CPPUNIT_TEST(testDecapsulationTestVector);
 	CPPUNIT_TEST_SUITE_END();
 
 public:
@@ -28,6 +31,9 @@ public:
 	void testEncapsulation();
 	void testEncapsulationDecapsulation();
 	void testEncapsulationInvalidInputs();
+	void testKeyGenerationTestVector();
+	void testEncapsulationTestVector();
+	void testDecapsulationTestVector();
 
 	void setUp();
 	void tearDown();

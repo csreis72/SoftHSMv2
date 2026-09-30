@@ -60,19 +60,26 @@ public:
 	virtual PrivateKey* newPrivateKey();
 	virtual AsymmetricParameters* newParameters();
 
+protected:
+	// Deterministic encapsulation for test vectors (draft 10, section 5.4.1)
+	bool encapsulate(PublicKey* publicKey, ByteString& cipherText,
+	                 SymmetricKey** secretKey, CK_KEY_TYPE keyType,
+	                 const AsymMech::Type mechanism, const ByteString& seed);
+
 private:
 	// Component encapsulation/decapsulation functions
 	bool encapsulateMLKEM(EVP_PKEY* mlkemPkey, ByteString& cipherText,
-	                     ByteString& sharedSecret);
+	                     ByteString& sharedSecret, const ByteString& seed);
 	bool encapsulateX25519(EVP_PKEY* x25519Pkey, ByteString& cipherText,
-	                      ByteString& sharedSecret, RNG* rng);
+	                      ByteString& sharedSecret, RNG* rng,
+	                      const ByteString& seed);
 	bool encapsulateComponents(EVP_PKEY* mlkemPkey,
 	                           EVP_PKEY* x25519Pkey,
 	                           ByteString& mlkemCipherText,
 	                           ByteString& mlkemSharedSecret,
 	                           ByteString& x25519CipherText,
 	                           ByteString& x25519SharedSecret,
-	                           RNG* rng = NULL);
+	                           const ByteString& seed, RNG* rng = NULL);
 	bool decapsulateMLKEM(EVP_PKEY* mlkemPkey,
 	                     const ByteString& cipherText,
 	                     ByteString& sharedSecret);

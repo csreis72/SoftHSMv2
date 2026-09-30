@@ -18,6 +18,7 @@
 #include "OSSLXWingKeyPair.h"
 #include "OSSLXWingPrivateKey.h"
 #include "XWingParameters.h"
+#include <openssl/core_names.h>
 #include <openssl/crypto.h>
 #include <openssl/err.h>
 
@@ -29,12 +30,18 @@ const unsigned char X_WING_LABEL[] = {
 }
 
 bool OSSLXWing::encapsulateMLKEM(EVP_PKEY* mlkemPkey,
-	ByteString& cipherText, ByteString& sharedSecret)
+	ByteString& cipherText, ByteString& sharedSecret, const ByteString& seed)
 {
+	OSSL_PARAM params[] = {
+		OSSL_PARAM_construct_octet_string(OSSL_KEM_PARAM_IKME,
+			const_cast<unsigned char*>(seed.const_byte_str()), seed.size()),
+		OSSL_PARAM_construct_end()
+	};
 	EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new_from_pkey(NULL, mlkemPkey, NULL);
 	size_t cipherTextLen = 0;
 	size_t sharedSecretLen = 0;
-	bool rv = ctx != NULL && EVP_PKEY_encapsulate_init(ctx, NULL) > 0 &&
+	bool rv = ctx != NULL &&
+		EVP_PKEY_encapsulate_init(ctx, seed.size() == 0 ? NULL : params) > 0 &&
 		EVP_PKEY_encapsulate(ctx, NULL, &cipherTextLen, NULL,
 		                     &sharedSecretLen) > 0 &&
 		cipherTextLen == XWingParameters::ML_KEM_768_CIPHERTEXT_LENGTH &&
@@ -62,9 +69,10 @@ bool OSSLXWing::encapsulateMLKEM(EVP_PKEY* mlkemPkey,
 }
 
 bool OSSLXWing::encapsulateX25519(EVP_PKEY* x25519Pkey,
-	ByteString& cipherText, ByteString& sharedSecret, RNG* rng)
+	ByteString& cipherText, ByteString& sharedSecret, RNG* rng,
+	const ByteString& seed)
 {
-	ByteString ephemeralPrivateKey;
+	ByteString ephemeralPrivateKey = seed;
 	EVP_PKEY* ephemeralPkey = NULL;
 	EVP_PKEY_CTX* ctx = NULL;
 	size_t cipherTextLen = XWingParameters::X25519_PUB_LENGTH;
@@ -72,9 +80,13 @@ bool OSSLXWing::encapsulateX25519(EVP_PKEY* x25519Pkey,
 	static const unsigned char zero[
 		XWingParameters::X_WING_SHARED_SECRET_LENGTH] = { 0 };
 
-	bool rv = rng != NULL &&
-		rng->generateRandom(ephemeralPrivateKey,
-		                    XWingParameters::X25519_PRIV_LENGTH);
+	bool rv = seed.size() == XWingParameters::X25519_PRIV_LENGTH;
+	if (seed.size() == 0)
+	{
+		rv = rng != NULL &&
+			rng->generateRandom(ephemeralPrivateKey,
+			                    XWingParameters::X25519_PRIV_LENGTH);
+	}
 	if (rv)
 	{
 		ephemeralPkey = EVP_PKEY_new_raw_private_key_ex(
@@ -123,7 +135,7 @@ bool OSSLXWing::encapsulateX25519(EVP_PKEY* x25519Pkey,
 bool OSSLXWing::encapsulateComponents(EVP_PKEY* mlkemPkey,
 	EVP_PKEY* x25519Pkey, ByteString& mlkemCipherText,
 	ByteString& mlkemSharedSecret, ByteString& x25519CipherText,
-	ByteString& x25519SharedSecret, RNG* rng)
+	ByteString& x25519SharedSecret, const ByteString& seed, RNG* rng)
 {
 	mlkemCipherText.wipe();
 	mlkemSharedSecret.wipe();
@@ -132,10 +144,11 @@ bool OSSLXWing::encapsulateComponents(EVP_PKEY* mlkemPkey,
 	if (mlkemPkey == NULL || x25519Pkey == NULL) return false;
 	if (rng == NULL) rng = CryptoFactory::i()->getRNG();
 
+	const size_t seedLen = XWingParameters::X_WING_ENCAPSULATION_SEED_LENGTH / 2;
 	if (encapsulateX25519(x25519Pkey, x25519CipherText,
-	                    x25519SharedSecret, rng) &&
+	                    x25519SharedSecret, rng, seed.substr(seedLen)) &&
 		encapsulateMLKEM(mlkemPkey, mlkemCipherText,
-		                 mlkemSharedSecret))
+		                 mlkemSharedSecret, seed.substr(0, seedLen)))
 	{
 		return true;
 	}
@@ -277,7 +290,15 @@ bool OSSLXWing::combineSharedSecrets(const ByteString& mlkemSharedSecret,
 
 bool OSSLXWing::encapsulate(PublicKey* publicKey, ByteString& cipherText,
 	SymmetricKey** secretKey, CK_KEY_TYPE keyType,
-	const AsymMech::Type /*mechanism*/)
+	const AsymMech::Type mechanism)
+{
+	return encapsulate(publicKey, cipherText, secretKey, keyType,
+	                   mechanism, ByteString());
+}
+
+bool OSSLXWing::encapsulate(PublicKey* publicKey, ByteString& cipherText,
+	SymmetricKey** secretKey, CK_KEY_TYPE keyType,
+	const AsymMech::Type /*mechanism*/, const ByteString& seed)
 {
 	cipherText.wipe();
 	if (secretKey == NULL)
@@ -286,6 +307,12 @@ bool OSSLXWing::encapsulate(PublicKey* publicKey, ByteString& cipherText,
 		return false;
 	}
 	*secretKey = NULL;
+	if (seed.size() != 0 &&
+		seed.size() != XWingParameters::X_WING_ENCAPSULATION_SEED_LENGTH)
+	{
+		ERROR_MSG("Invalid X-Wing encapsulation seed length");
+		return false;
+	}
 	if (publicKey == NULL ||
 		!publicKey->isOfType(OSSLXWingPublicKey::type))
 	{
@@ -311,7 +338,8 @@ bool OSSLXWing::encapsulate(PublicKey* publicKey, ByteString& cipherText,
 	const ByteString x25519PublicKey = xwingPublicKey->getX25519Value();
 	bool rv = encapsulateComponents(mlkemPkey, x25519Pkey,
 	                                mlkemCipherText, mlkemSharedSecret,
-	                                x25519CipherText, x25519SharedSecret) &&
+	                                x25519CipherText, x25519SharedSecret,
+	                                seed) &&
 		combineSharedSecrets(mlkemSharedSecret, x25519SharedSecret,
 		                     x25519CipherText, x25519PublicKey,
 		                     sharedSecret);

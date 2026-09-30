@@ -33,6 +33,7 @@ public:
 	static const unsigned long X_WING_PUB_LENGTH = 1216;
 	static const unsigned long X_WING_CIPHERTEXT_LENGTH = 1120;
 	static const unsigned long X_WING_SHARED_SECRET_LENGTH = 32;
+	static const unsigned long X_WING_ENCAPSULATION_SEED_LENGTH = 64;
 	static const unsigned long X_WING_KEY_DERIVATION_LENGTH = 96;
 
 	// Component sizes in bytes
