@@ -9078,26 +9078,29 @@ CK_RV SoftHSM::C_DecapsulateKey
 				rv = CKR_FUNCTION_FAILED;
 		}
 
-		// Clean up
-		cipher->recycleSymmetricKey(secret);
-		cipher->recyclePrivateKey(privateKey);
-		CryptoFactory::i()->recycleAsymmetricAlgorithm(cipher);
-		// Remove secret that may have been created already when the function fails.
-		if (rv != CKR_OK)
-		{
-			if (*phKey != CK_INVALID_HANDLE)
-			{
-				OSObject* ossecret = (OSObject*)handleManager->getObject(*phKey);
-				handleManager->destroyObject(*phKey);
-				if (ossecret) ossecret->destroyObject();
-				*phKey = CK_INVALID_HANDLE;
-			}
-		}
-
-		return rv;
-	} else {
-		return CKR_GENERAL_ERROR;
 	}
+	else
+	{
+		rv = CKR_GENERAL_ERROR;
+	}
+
+	// Clean up
+	cipher->recycleSymmetricKey(secret);
+	cipher->recyclePrivateKey(privateKey);
+	CryptoFactory::i()->recycleAsymmetricAlgorithm(cipher);
+	// Remove secret that may have been created already when the function fails.
+	if (rv != CKR_OK)
+	{
+		if (*phKey != CK_INVALID_HANDLE)
+		{
+			OSObject* ossecret = (OSObject*)handleManager->getObject(*phKey);
+			handleManager->destroyObject(*phKey);
+			if (ossecret) ossecret->destroyObject();
+			*phKey = CK_INVALID_HANDLE;
+		}
+	}
+
+	return rv;
 }
 #else
 CK_RV SoftHSM::C_DecapsulateKey
