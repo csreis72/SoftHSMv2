@@ -1464,7 +1464,7 @@ CK_RV SoftHSM::C_GetMechanismInfo(CK_SLOT_ID slotID, CK_MECHANISM_TYPE type, CK_
 		case CKM_X_WING:
 			pInfo->ulMinKeySize = xwingMinSize;
 			pInfo->ulMaxKeySize = xwingMaxSize;
-			pInfo->flags = CKF_ENCAPSULATE;
+			pInfo->flags = CKF_ENCAPSULATE | CKF_DECAPSULATE;
 			break;
 #endif
 	    case CKM_CONCATENATE_DATA_AND_BASE:
@@ -8760,7 +8760,7 @@ CK_RV SoftHSM::C_EncapsulateKey
 }
 #endif
 
-#ifdef WITH_ML_KEM
+#if defined(WITH_ML_KEM) || defined(WITH_X_WING)
 CK_RV SoftHSM::C_DecapsulateKey
 	(
         CK_SESSION_HANDLE hSession,         /* the session's handle */
@@ -8854,10 +8854,20 @@ CK_RV SoftHSM::C_DecapsulateKey
 	// Check the mechanism, only accept advanced AES key wrapping and RSA
 	switch(pMechanism->mechanism)
 	{
+#ifdef WITH_ML_KEM
 		case CKM_ML_KEM:
 			algo = AsymAlgo::MLKEM;
 			mech = AsymMech::MLKEM;
 			break;
+#endif
+#ifdef WITH_X_WING
+		case CKM_X_WING:
+			if (decapsulationKey->getUnsignedLongValue(CKA_KEY_TYPE, CKK_VENDOR_DEFINED) != CKK_X_WING)
+				return CKR_KEY_TYPE_INCONSISTENT;
+			algo = AsymAlgo::XWING;
+			mech = AsymMech::XWING;
+			break;
+#endif
 		default:
 			return CKR_MECHANISM_INVALID;
 	}
@@ -8871,14 +8881,53 @@ CK_RV SoftHSM::C_DecapsulateKey
 		return CKR_ATTRIBUTE_VALUE_INVALID;
 	}
 
+#ifdef WITH_X_WING
+	if (algo == AsymAlgo::XWING &&
+		ulCipherTextLen != XWingParameters::X_WING_CIPHERTEXT_LENGTH)
+	{
+		CryptoFactory::i()->recycleAsymmetricAlgorithm(cipher);
+		return CKR_ATTRIBUTE_VALUE_INVALID;
+	}
+#endif
+
 	PrivateKey* privateKey = cipher->newPrivateKey();
 
-	if (MLKEMUtil::getMLKEMPrivateKey((MLKEMPrivateKey*)privateKey, token, decapsulationKey) != CKR_OK)
+#ifdef WITH_ML_KEM
+	if (algo == AsymAlgo::MLKEM &&
+		MLKEMUtil::getMLKEMPrivateKey((MLKEMPrivateKey*)privateKey,
+		                               token, decapsulationKey) != CKR_OK)
 	{
 		cipher->recyclePrivateKey(privateKey);
 		CryptoFactory::i()->recycleAsymmetricAlgorithm(cipher);
 		return CKR_GENERAL_ERROR;
 	}
+#endif
+#ifdef WITH_X_WING
+	if (algo == AsymAlgo::XWING)
+	{
+		ByteString value = decapsulationKey->getByteStringValue(CKA_VALUE);
+		if (isDecapsulationKeyPrivate)
+		{
+			ByteString decryptedValue;
+			if (!token->decrypt(value, decryptedValue))
+			{
+				cipher->recyclePrivateKey(privateKey);
+				CryptoFactory::i()->recycleAsymmetricAlgorithm(cipher);
+				return CKR_GENERAL_ERROR;
+			}
+			value = decryptedValue;
+		}
+
+		if (value.size() != XWingParameters::X_WING_PRIV_LENGTH)
+		{
+			cipher->recyclePrivateKey(privateKey);
+			CryptoFactory::i()->recycleAsymmetricAlgorithm(cipher);
+			return CKR_GENERAL_ERROR;
+		}
+		((XWingPrivateKey*)privateKey)->setValue(value);
+		value.wipe();
+	}
+#endif
 
 	SymmetricKey *secret = NULL;
 	ByteString cipherText = ByteString(pCipherText, ulCipherTextLen);

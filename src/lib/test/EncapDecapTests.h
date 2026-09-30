@@ -29,6 +29,7 @@ class EncapDecapTests : public TestsBase
 #endif
 #ifdef WITH_X_WING
 	CPPUNIT_TEST(testXWingEncapsulation);
+	CPPUNIT_TEST(testXWingEncapsulationDecapsulation);
 	CPPUNIT_TEST(testXWingEncapsulationBufferTooSmall);
 	CPPUNIT_TEST(testXWingEncapsulationInvalidInputs);
 #endif
@@ -45,6 +46,7 @@ public:
 #endif
 #ifdef WITH_X_WING
 	void testXWingEncapsulation();
+	void testXWingEncapsulationDecapsulation();
 	void testXWingEncapsulationBufferTooSmall();
 	void testXWingEncapsulationInvalidInputs();
 #endif

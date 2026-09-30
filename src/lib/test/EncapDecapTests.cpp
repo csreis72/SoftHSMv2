@@ -161,6 +161,86 @@ void EncapDecapTests::encapsulateXWing(CK_SESSION_HANDLE hSession,
 	CPPUNIT_ASSERT(rv == CKR_OK);
 }
 
+void EncapDecapTests::testXWingEncapsulationDecapsulation()
+{
+	CRYPTOKI_F_PTR( C_Finalize(NULL_PTR) );
+	CK_RV rv = CRYPTOKI_F_PTR( C_Initialize(NULL_PTR) );
+	CPPUNIT_ASSERT(rv == CKR_OK);
+
+	CK_SESSION_HANDLE hSession;
+	rv = CRYPTOKI_F_PTR( C_OpenSession(m_initializedTokenSlotID,
+		CKF_SERIAL_SESSION | CKF_RW_SESSION, NULL_PTR, NULL_PTR, &hSession) );
+	CPPUNIT_ASSERT(rv == CKR_OK);
+	rv = CRYPTOKI_F_PTR( C_Login(hSession, CKU_USER, m_userPin1,
+		m_userPin1Length) );
+	CPPUNIT_ASSERT(rv == CKR_OK);
+
+	CK_OBJECT_HANDLE hPuk = CK_INVALID_HANDLE;
+	CK_OBJECT_HANDLE hPrk = CK_INVALID_HANDLE;
+	rv = generateXWing(hSession, IN_SESSION, IS_PUBLIC, IN_SESSION,
+	                    IS_PRIVATE, hPuk, hPrk);
+	CPPUNIT_ASSERT(rv == CKR_OK);
+
+	CK_MECHANISM mechanism = { CKM_X_WING, NULL_PTR, 0 };
+	CK_OBJECT_CLASS keyClass = CKO_SECRET_KEY;
+	CK_KEY_TYPE keyType = CKK_AES;
+	CK_ULONG valueLen = 32;
+	CK_BBOOL bTrue = CK_TRUE;
+	CK_ATTRIBUTE keyAttribs[] = {
+		{ CKA_CLASS, &keyClass, sizeof(keyClass) },
+		{ CKA_KEY_TYPE, &keyType, sizeof(keyType) },
+		{ CKA_VALUE_LEN, &valueLen, sizeof(valueLen) },
+		{ CKA_ENCRYPT, &bTrue, sizeof(bTrue) },
+		{ CKA_DECRYPT, &bTrue, sizeof(bTrue) }
+	};
+	CK_BYTE cipherText[X_WING_CIPHERTEXT_LENGTH];
+	CK_ULONG cipherTextLen = sizeof(cipherText);
+	CK_OBJECT_HANDLE hEncapKey = CK_INVALID_HANDLE;
+	rv = CRYPTOKI_F_PTR( C_EncapsulateKey(hSession, &mechanism, hPuk,
+		keyAttribs, sizeof(keyAttribs) / sizeof(CK_ATTRIBUTE), cipherText,
+		&cipherTextLen, &hEncapKey) );
+	CPPUNIT_ASSERT(rv == CKR_OK);
+	CPPUNIT_ASSERT(cipherTextLen == X_WING_CIPHERTEXT_LENGTH);
+	CPPUNIT_ASSERT(hEncapKey != CK_INVALID_HANDLE);
+
+	CK_OBJECT_HANDLE hDecapKey = CK_INVALID_HANDLE;
+	rv = CRYPTOKI_F_PTR( C_DecapsulateKey(hSession, &mechanism, hPrk,
+		keyAttribs, sizeof(keyAttribs) / sizeof(CK_ATTRIBUTE), cipherText,
+		cipherTextLen, &hDecapKey) );
+	CPPUNIT_ASSERT(rv == CKR_OK);
+	CPPUNIT_ASSERT(hDecapKey != CK_INVALID_HANDLE);
+
+	CK_BYTE encapCheckValue[32];
+	CK_BYTE decapCheckValue[32];
+	CK_ATTRIBUTE encapCheckValueAttrib = {
+		CKA_CHECK_VALUE, encapCheckValue, sizeof(encapCheckValue)
+	};
+	CK_ATTRIBUTE decapCheckValueAttrib = {
+		CKA_CHECK_VALUE, decapCheckValue, sizeof(decapCheckValue)
+	};
+	rv = CRYPTOKI_F_PTR( C_GetAttributeValue(hSession, hEncapKey,
+		&encapCheckValueAttrib, 1) );
+	CPPUNIT_ASSERT(rv == CKR_OK);
+	rv = CRYPTOKI_F_PTR( C_GetAttributeValue(hSession, hDecapKey,
+		&decapCheckValueAttrib, 1) );
+	CPPUNIT_ASSERT(rv == CKR_OK);
+	CPPUNIT_ASSERT(encapCheckValueAttrib.ulValueLen ==
+	               decapCheckValueAttrib.ulValueLen);
+	CPPUNIT_ASSERT(memcmp(encapCheckValue, decapCheckValue,
+	                      encapCheckValueAttrib.ulValueLen) == 0);
+
+	rv = CRYPTOKI_F_PTR( C_DestroyObject(hSession, hEncapKey) );
+	CPPUNIT_ASSERT(rv == CKR_OK);
+	rv = CRYPTOKI_F_PTR( C_DestroyObject(hSession, hDecapKey) );
+	CPPUNIT_ASSERT(rv == CKR_OK);
+	rv = CRYPTOKI_F_PTR( C_DestroyObject(hSession, hPuk) );
+	CPPUNIT_ASSERT(rv == CKR_OK);
+	rv = CRYPTOKI_F_PTR( C_DestroyObject(hSession, hPrk) );
+	CPPUNIT_ASSERT(rv == CKR_OK);
+	rv = CRYPTOKI_F_PTR( C_CloseSession(hSession) );
+	CPPUNIT_ASSERT(rv == CKR_OK);
+}
+
 void EncapDecapTests::testXWingEncapsulationBufferTooSmall()
 {
 	CRYPTOKI_F_PTR( C_Finalize(NULL_PTR) );

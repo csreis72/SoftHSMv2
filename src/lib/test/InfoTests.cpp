@@ -345,7 +345,8 @@ void InfoTests::testGetMechanismInfo()
 	CPPUNIT_ASSERT_EQUAL(CKR_OK, rv);
 	CPPUNIT_ASSERT_EQUAL((CK_ULONG)32, info.ulMinKeySize);
 	CPPUNIT_ASSERT_EQUAL((CK_ULONG)32, info.ulMaxKeySize);
-	CPPUNIT_ASSERT_EQUAL((CK_FLAGS)CKF_ENCAPSULATE, info.flags);
+	CPPUNIT_ASSERT_EQUAL((CK_FLAGS)(CKF_ENCAPSULATE | CKF_DECAPSULATE),
+	                     info.flags);
 #endif
 
 	free(pMechanismList);
