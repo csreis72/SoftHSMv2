@@ -1,5 +1,5 @@
 AC_DEFUN([ACX_OPENSSL_FALCON],[
-	AC_MSG_CHECKING(for OpenSSL Falcon-512 support)
+	AC_MSG_CHECKING(for OpenSSL Falcon-512 and Falcon-1024 support)
 
 	tmp_CPPFLAGS=$CPPFLAGS
 	tmp_LIBS=$LIBS
@@ -15,11 +15,16 @@ AC_DEFUN([ACX_OPENSSL_FALCON],[
 				#include <openssl/evp.h>
 				int main()
 				{
-					EVP_PKEY_CTX *pctx =
-						EVP_PKEY_CTX_new_from_name(NULL, "falcon512", NULL);
-					if (pctx == NULL)
-						return 1;
-					EVP_PKEY_CTX_free(pctx);
+					const char *names[] = { "falcon512", "falcon1024" };
+					unsigned int i;
+					for (i = 0; i < sizeof(names) / sizeof(names[0]); i++)
+					{
+						EVP_PKEY_CTX *pctx =
+							EVP_PKEY_CTX_new_from_name(NULL, names[i], NULL);
+						if (pctx == NULL)
+							return 1;
+						EVP_PKEY_CTX_free(pctx);
+					}
 					return 0;
 				}
 			]])
@@ -30,7 +35,7 @@ AC_DEFUN([ACX_OPENSSL_FALCON],[
 			AC_MSG_RESULT([no])
 			acx_cv_lib_openssl_falcon_support=no
 		],[
-			AC_MSG_WARN([Cannot test, Falcon-512])
+			AC_MSG_WARN([Cannot test, Falcon-512 and Falcon-1024])
 			acx_cv_lib_openssl_falcon_support=no
 		])
 	])

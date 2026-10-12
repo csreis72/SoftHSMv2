@@ -151,7 +151,7 @@
 /* Compile with EDDSA support */
 #cmakedefine WITH_EDDSA @WITH_EDDSA@
 
-/* Compile with Falcon-512 support */
+/* Compile with Falcon-512 and Falcon-1024 support */
 #cmakedefine WITH_FALCON @WITH_FALCON@
 
 /* Compile with ML-DSA support */

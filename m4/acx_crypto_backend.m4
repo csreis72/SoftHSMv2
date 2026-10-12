@@ -28,11 +28,11 @@ AC_DEFUN([ACX_CRYPTO_BACKEND],[
 		[enable_eddsa="detect"]
 	)
 
-	# Add Falcon-512 check
+	# Add Falcon parameter-set checks
 
 	AC_ARG_ENABLE(falcon,
 		AS_HELP_STRING([--enable-falcon],
-			[Enable support for Falcon-512 (default detect)]
+			[Enable support for Falcon-512 and Falcon-1024 (default detect)]
 		),
 		[enable_falcon="${enableval}"],
 		[enable_falcon="detect"]
@@ -134,7 +134,7 @@ AC_DEFUN([ACX_CRYPTO_BACKEND],[
 			yes|detect) ACX_OPENSSL_FALCON;;
 		esac
 		case "${enable_falcon}-${have_lib_openssl_falcon_support}" in
-			yes-no) AC_MSG_ERROR([OpenSSL library has no Falcon-512 support]);;
+			yes-no) AC_MSG_ERROR([OpenSSL library has no Falcon-512 and Falcon-1024 support]);;
 			detect-yes) enable_falcon="yes";;
 			detect-no) enable_falcon="no";;
 		esac
@@ -224,7 +224,7 @@ AC_DEFUN([ACX_CRYPTO_BACKEND],[
 		esac
 
 		if test "x${enable_falcon}" = "xyes"; then
-			AC_MSG_ERROR([Botan does not support Falcon-512])
+			AC_MSG_ERROR([Botan does not support Falcon])
 		fi
 		enable_falcon="no"
 
@@ -301,13 +301,13 @@ AC_DEFUN([ACX_CRYPTO_BACKEND],[
 	fi
 	AM_CONDITIONAL([WITH_EDDSA], [test "x${enable_eddsa}" = "xyes"])
 
-	AC_MSG_CHECKING(for Falcon-512 support)
+	AC_MSG_CHECKING(for Falcon-512 and Falcon-1024 support)
 	if test "x${enable_falcon}" = "xyes"; then
 		AC_MSG_RESULT(yes)
 		AC_DEFINE_UNQUOTED(
 			[WITH_FALCON],
 			[],
-			[Compile with Falcon-512 support]
+			[Compile with Falcon-512 and Falcon-1024 support]
 		)
 	else
 		AC_MSG_RESULT(no)
