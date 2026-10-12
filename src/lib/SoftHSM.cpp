@@ -7287,6 +7287,11 @@ CK_RV SoftHSM::C_WrapKey
 				alg = AsymAlgo::MLKEM;
 				break;
 #endif
+#ifdef WITH_X_WING
+			case CKK_X_WING:
+				alg = AsymAlgo::XWING;
+				break;
+#endif
 			default:
 				return CKR_KEY_NOT_WRAPPABLE;
 		}
@@ -7334,6 +7339,11 @@ CK_RV SoftHSM::C_WrapKey
 #ifdef WITH_ML_KEM
 			case CKK_ML_KEM:
 				rv = MLKEMUtil::getMLKEMPrivateKey((MLKEMPrivateKey*)privateKey, token, key);
+				break;
+#endif
+#ifdef WITH_X_WING
+			case CKK_X_WING:
+				rv = getXWingPrivateKey((XWingPrivateKey*)privateKey, token, key);
 				break;
 #endif
 		}
@@ -8070,6 +8080,12 @@ CK_RV SoftHSM::C_UnwrapKey
 			else if (keyType == CKK_ML_KEM)
 			{
 				bOK = bOK && MLKEMUtil::setMLKEMPrivateKey(osobject, keydata, token, isPrivate != CK_FALSE);
+			}
+#endif
+#ifdef WITH_X_WING
+			else if (keyType == CKK_X_WING)
+			{
+				bOK = bOK && setXWingPrivateKey(osobject, keydata, token, isPrivate != CK_FALSE);
 			}
 #endif
 			else
@@ -8920,29 +8936,12 @@ CK_RV SoftHSM::C_DecapsulateKey
 	}
 #endif
 #ifdef WITH_X_WING
-	if (algo == AsymAlgo::XWING)
+	if (algo == AsymAlgo::XWING &&
+		getXWingPrivateKey((XWingPrivateKey*)privateKey, token, decapsulationKey) != CKR_OK)
 	{
-		ByteString value = decapsulationKey->getByteStringValue(CKA_VALUE);
-		if (isDecapsulationKeyPrivate)
-		{
-			ByteString decryptedValue;
-			if (!token->decrypt(value, decryptedValue))
-			{
-				cipher->recyclePrivateKey(privateKey);
-				CryptoFactory::i()->recycleAsymmetricAlgorithm(cipher);
-				return CKR_GENERAL_ERROR;
-			}
-			value = decryptedValue;
-		}
-
-		if (value.size() != XWingParameters::X_WING_PRIV_LENGTH)
-		{
-			cipher->recyclePrivateKey(privateKey);
-			CryptoFactory::i()->recycleAsymmetricAlgorithm(cipher);
-			return CKR_GENERAL_ERROR;
-		}
-		((XWingPrivateKey*)privateKey)->setValue(value);
-		value.wipe();
+		cipher->recyclePrivateKey(privateKey);
+		CryptoFactory::i()->recycleAsymmetricAlgorithm(cipher);
+		return CKR_GENERAL_ERROR;
 	}
 #endif
 
@@ -14903,6 +14902,30 @@ CK_RV SoftHSM::getGOSTPublicKey(GOSTPublicKey* publicKey, Token* token, OSObject
 	return CKR_OK;
 }
 
+#ifdef WITH_X_WING
+CK_RV SoftHSM::getXWingPrivateKey(XWingPrivateKey* privateKey, Token* token, OSObject* key)
+{
+	if (privateKey == NULL) return CKR_ARGUMENTS_BAD;
+	if (token == NULL) return CKR_ARGUMENTS_BAD;
+	if (key == NULL) return CKR_ARGUMENTS_BAD;
+
+	ByteString value;
+	if (key->getBooleanValue(CKA_PRIVATE, false))
+	{
+		if (!token->decrypt(key->getByteStringValue(CKA_VALUE), value))
+			return CKR_GENERAL_ERROR;
+	}
+	else
+		value = key->getByteStringValue(CKA_VALUE);
+	if (value.size() != XWingParameters::X_WING_PRIV_LENGTH)
+		return CKR_GENERAL_ERROR;
+
+	privateKey->setValue(value);
+	value.wipe();
+	return CKR_OK;
+}
+#endif
+
 CK_RV SoftHSM::getSymmetricKey(SymmetricKey* skey, Token* token, OSObject* key)
 {
 	if (skey == NULL) return CKR_ARGUMENTS_BAD;
@@ -15163,6 +15186,35 @@ bool SoftHSM::setEDPrivateKey(OSObject* key, const ByteString &ber, Token* token
 
 	return bOK;
 }
+
+#ifdef WITH_X_WING
+bool SoftHSM::setXWingPrivateKey(OSObject* key, const ByteString &ber, Token* token, bool isPrivate) const
+{
+	AsymmetricAlgorithm* xwing = CryptoFactory::i()->getAsymmetricAlgorithm(AsymAlgo::XWING);
+	if (xwing == NULL) return false;
+	PrivateKey* priv = xwing->newPrivateKey();
+	if (priv == NULL)
+	{
+		CryptoFactory::i()->recycleAsymmetricAlgorithm(xwing);
+		return false;
+	}
+
+	bool bOK = priv->PKCS8Decode(ber);
+	if (bOK)
+	{
+		ByteString value;
+		if (isPrivate)
+			bOK = token->encrypt(((XWingPrivateKey*)priv)->getValue(), value);
+		else
+			value = ((XWingPrivateKey*)priv)->getValue();
+		bOK = bOK && key->setAttribute(CKA_VALUE, value);
+	}
+
+	xwing->recyclePrivateKey(priv);
+	CryptoFactory::i()->recycleAsymmetricAlgorithm(xwing);
+	return bOK;
+}
+#endif
 
 bool SoftHSM::setGOSTPrivateKey(OSObject* key, const ByteString &ber, Token* token, bool isPrivate) const
 {

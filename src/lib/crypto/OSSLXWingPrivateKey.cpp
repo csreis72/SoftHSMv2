@@ -241,13 +241,8 @@ bool OSSLXWingPrivateKey::PKCS8Decode(const ByteString& ber)
 {
 	if (ber.size() == 0) return false;
 	const unsigned char* input = ber.const_byte_str();
-	const unsigned char* end = input + ber.size();
 	PKCS8_PRIV_KEY_INFO* p8 = d2i_PKCS8_PRIV_KEY_INFO(NULL, &input, ber.size());
-	if (p8 == NULL || input != end)
-	{
-		PKCS8_PRIV_KEY_INFO_free(p8);
-		return false;
-	}
+	if (p8 == NULL) return false;
 
 	const ASN1_OBJECT* algorithm = NULL;
 	const unsigned char* privateKey = NULL;

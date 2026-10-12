@@ -53,6 +53,9 @@
 #include "DHPrivateKey.h"
 #include "GOSTPublicKey.h"
 #include "GOSTPrivateKey.h"
+#ifdef WITH_X_WING
+#include "XWingPrivateKey.h"
+#endif
 
 #include <memory>
 
@@ -508,6 +511,9 @@ private:
 	CK_RV getGOSTPrivateKey(GOSTPrivateKey* privateKey, Token* token, OSObject* key);
 	CK_RV getGOSTPublicKey(GOSTPublicKey* publicKey, Token* token, OSObject* key);
 	CK_RV getSymmetricKey(SymmetricKey* skey, Token* token, OSObject* key);
+#ifdef WITH_X_WING
+	CK_RV getXWingPrivateKey(XWingPrivateKey* privateKey, Token* token, OSObject* key);
+#endif
 
 	ByteString getECDHPubData(ByteString& pubData);
 
@@ -516,6 +522,9 @@ private:
 	bool setDHPrivateKey(OSObject* key, const ByteString &ber, Token* token, bool isPrivate) const;
 	bool setECPrivateKey(OSObject* key, const ByteString &ber, Token* token, bool isPrivate) const;
 	bool setEDPrivateKey(OSObject* key, const ByteString &ber, Token* token, bool isPrivate) const;
+#ifdef WITH_X_WING
+	bool setXWingPrivateKey(OSObject* key, const ByteString &ber, Token* token, bool isPrivate) const;
+#endif
 	bool setGOSTPrivateKey(OSObject* key, const ByteString &ber, Token* token, bool isPrivate) const;
 
 
