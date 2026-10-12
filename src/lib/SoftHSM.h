@@ -506,7 +506,7 @@ private:
 	CK_RV getEDPrivateKey(EDPrivateKey* privateKey, Token* token, OSObject* key);
 	CK_RV getEDPublicKey(EDPublicKey* publicKey, Token* token, OSObject* key);
 #ifdef WITH_FALCON
-	CK_RV getFalconPrivateKey(FalconPrivateKey* privateKey, Token* token, OSObject* key);
+	CK_RV getFalconPrivateKey(FalconPrivateKey* privateKey, Token* token, OSObject* key, bool includePublicKeyInfo = false);
 	CK_RV getFalconPublicKey(FalconPublicKey* publicKey, Token* token, OSObject* key);
 #endif
 	CK_RV getDHPrivateKey(DHPrivateKey* privateKey, Token* token, OSObject* key);
@@ -524,6 +524,9 @@ private:
 	bool setDHPrivateKey(OSObject* key, const ByteString &ber, Token* token, bool isPrivate) const;
 	bool setECPrivateKey(OSObject* key, const ByteString &ber, Token* token, bool isPrivate) const;
 	bool setEDPrivateKey(OSObject* key, const ByteString &ber, Token* token, bool isPrivate) const;
+#ifdef WITH_FALCON
+	bool setFalconPrivateKey(OSObject* key, const ByteString &ber, Token* token, bool isPrivate) const;
+#endif
 	bool setGOSTPrivateKey(OSObject* key, const ByteString &ber, Token* token, bool isPrivate) const;
 
 

@@ -7367,6 +7367,11 @@ CK_RV SoftHSM::C_WrapKey
 				alg = AsymAlgo::MLDSA;
 				break;
 #endif
+#ifdef WITH_FALCON
+			case CKK_FALCON:
+				alg = AsymAlgo::FALCON;
+				break;
+#endif
 #ifdef WITH_ML_KEM
 			case CKK_ML_KEM:
 				alg = AsymAlgo::MLKEM;
@@ -7414,6 +7419,11 @@ CK_RV SoftHSM::C_WrapKey
 #ifdef WITH_ML_DSA
 			case CKK_ML_DSA:
 				rv = MLDSAUtil::getMLDSAPrivateKey((MLDSAPrivateKey*)privateKey, token, key);
+				break;
+#endif
+#ifdef WITH_FALCON
+			case CKK_FALCON:
+				rv = getFalconPrivateKey((FalconPrivateKey*)privateKey, token, key, true);
 				break;
 #endif
 #ifdef WITH_ML_KEM
@@ -8149,6 +8159,12 @@ CK_RV SoftHSM::C_UnwrapKey
 			else if (keyType == CKK_ML_DSA)
 			{
 				bOK = bOK && MLDSAUtil::setMLDSAPrivateKey(osobject, keydata, token, isPrivate != CK_FALSE);
+			}
+#endif
+#ifdef WITH_FALCON
+			else if (keyType == CKK_FALCON)
+			{
+				bOK = bOK && setFalconPrivateKey(osobject, keydata, token, isPrivate != CK_FALSE);
 			}
 #endif
 #ifdef WITH_ML_KEM
@@ -11391,12 +11407,19 @@ CK_RV SoftHSM::generateFalcon
 					CKA_NEVER_EXTRACTABLE, neverExtractable);
 
 				ByteString value;
+				ByteString publicKeyInfo = privateKey->getPublicKeyInfo();
 				if (isPrivateKeyPrivate)
-					token->encrypt(privateKey->getValue(), value);
+				{
+					ByteString encryptedInfo;
+					bOK = bOK && token->encrypt(publicKeyInfo, encryptedInfo);
+					publicKeyInfo = encryptedInfo;
+					bOK = bOK && token->encrypt(privateKey->getValue(), value);
+				}
 				else
 					value = privateKey->getValue();
 				bOK = bOK && osobject->setAttribute(
 					CKA_PARAMETER_SET, privateKey->getParameterSet());
+				bOK = bOK && osobject->setAttribute(CKA_PUBLIC_KEY_INFO, publicKeyInfo);
 				bOK = bOK && osobject->setAttribute(CKA_VALUE, value);
 				value.wipe();
 
@@ -14704,7 +14727,7 @@ CK_RV SoftHSM::getEDPublicKey(EDPublicKey* publicKey, Token* token, OSObject* ke
 
 #ifdef WITH_FALCON
 CK_RV SoftHSM::getFalconPrivateKey(FalconPrivateKey* privateKey, Token* token,
-	OSObject* key)
+	OSObject* key, bool includePublicKeyInfo)
 {
 	if (privateKey == NULL) return CKR_ARGUMENTS_BAD;
 	if (token == NULL) return CKR_ARGUMENTS_BAD;
@@ -14724,6 +14747,20 @@ CK_RV SoftHSM::getFalconPrivateKey(FalconPrivateKey* privateKey, Token* token,
 
 	privateKey->setValue(value);
 	value.wipe();
+	if (includePublicKeyInfo)
+	{
+		ByteString publicKeyInfo = key->getByteStringValue(CKA_PUBLIC_KEY_INFO);
+		if (publicKeyInfo.size() != 0)
+		{
+			if (isKeyPrivate)
+			{
+				ByteString decryptedInfo;
+				if (!token->decrypt(publicKeyInfo, decryptedInfo)) return CKR_GENERAL_ERROR;
+				publicKeyInfo = decryptedInfo;
+			}
+			if (!privateKey->setPublicKeyInfo(publicKeyInfo)) return CKR_GENERAL_ERROR;
+		}
+	}
 	return CKR_OK;
 }
 
@@ -15208,6 +15245,44 @@ bool SoftHSM::setEDPrivateKey(OSObject* key, const ByteString &ber, Token* token
 
 	return bOK;
 }
+
+#ifdef WITH_FALCON
+bool SoftHSM::setFalconPrivateKey(OSObject* key, const ByteString &ber, Token* token, bool isPrivate) const
+{
+	AsymmetricAlgorithm* falcon = CryptoFactory::i()->getAsymmetricAlgorithm(AsymAlgo::FALCON);
+	if (falcon == NULL) return false;
+	PrivateKey* priv = falcon->newPrivateKey();
+	if (priv == NULL)
+	{
+		CryptoFactory::i()->recycleAsymmetricAlgorithm(falcon);
+		return false;
+	}
+
+	bool bOK = priv->PKCS8Decode(ber);
+	if (bOK)
+	{
+		FalconPrivateKey* falconPrivateKey = (FalconPrivateKey*)priv;
+		ByteString value;
+		ByteString publicKeyInfo = falconPrivateKey->getPublicKeyInfo();
+		if (isPrivate)
+		{
+			ByteString encryptedInfo;
+			bOK = token->encrypt(publicKeyInfo, encryptedInfo);
+			publicKeyInfo = encryptedInfo;
+			bOK = bOK && token->encrypt(falconPrivateKey->getValue(), value);
+		}
+		else
+			value = falconPrivateKey->getValue();
+		bOK = bOK && key->setAttribute(CKA_PARAMETER_SET, falconPrivateKey->getParameterSet());
+		bOK = bOK && key->setAttribute(CKA_PUBLIC_KEY_INFO, publicKeyInfo);
+		bOK = bOK && key->setAttribute(CKA_VALUE, value);
+	}
+
+	falcon->recyclePrivateKey(priv);
+	CryptoFactory::i()->recycleAsymmetricAlgorithm(falcon);
+	return bOK;
+}
+#endif
 
 bool SoftHSM::setGOSTPrivateKey(OSObject* key, const ByteString &ber, Token* token, bool isPrivate) const
 {

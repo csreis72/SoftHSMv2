@@ -35,6 +35,8 @@ public:
 
 	void setPublicValue(const ByteString& value);
 	const ByteString& getPublicValue() const;
+	virtual ByteString getPublicKeyInfo();
+	virtual bool setPublicKeyInfo(const ByteString& publicKeyInfo);
 
 	virtual ByteString PKCS8Encode();
 	virtual bool PKCS8Decode(const ByteString& ber);

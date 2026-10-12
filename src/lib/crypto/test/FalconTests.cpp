@@ -213,8 +213,11 @@ void FalconTests::testPKCS8()
 	CPPUNIT_ASSERT(privateKey->getValue() == decodedPrivateKey->getValue());
 	CPPUNIT_ASSERT(decodedPrivateKey->PKCS8Encode().size() != 0);
 
-	ByteString pkcs8WithTrailingData = pkcs8 + static_cast<unsigned char>(0);
-	CPPUNIT_ASSERT(!decodedPrivateKey->PKCS8Decode(pkcs8WithTrailingData));
+	// CKM_AES_KEY_WRAP zero-pads key data to a multiple of eight bytes.
+	ByteString paddedPKCS8 = pkcs8;
+	paddedPKCS8.resize((pkcs8.size() + 7) & ~size_t(7));
+	CPPUNIT_ASSERT(decodedPrivateKey->PKCS8Decode(paddedPKCS8));
+	CPPUNIT_ASSERT(privateKey->getValue() == decodedPrivateKey->getValue());
 
 	falcon->recyclePrivateKey(decodedPrivateKey);
 	falcon->recycleKeyPair(keyPair);

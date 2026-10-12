@@ -1669,6 +1669,7 @@ int crypto_save_falcon(CK_SESSION_HANDLE hSession, char* label, char* objID,
 
 	ByteString privateValue = privateKey.getValue();
 	ByteString publicValue = publicKey.getValue();
+	ByteString publicKeyInfo = privateKey.getPublicKeyInfo();
 	CK_ULONG parameterSet = privateKey.getParameterSet();
 	CK_OBJECT_CLASS pubClass = CKO_PUBLIC_KEY, privClass = CKO_PRIVATE_KEY;
 	CK_KEY_TYPE keyType = CKK_FALCON;
@@ -1699,6 +1700,7 @@ int crypto_save_falcon(CK_SESSION_HANDLE hSession, char* label, char* objID,
 		{ CKA_PRIVATE, &ckTrue, sizeof(ckTrue) },
 		{ CKA_EXTRACTABLE, &ckFalse, sizeof(ckFalse) },
 		{ CKA_PARAMETER_SET, &parameterSet, sizeof(parameterSet) },
+		{ CKA_PUBLIC_KEY_INFO, publicKeyInfo.byte_str(), publicKeyInfo.size() },
 		{ CKA_VALUE, privateValue.byte_str(), privateValue.size() }
 	};
 

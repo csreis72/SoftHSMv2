@@ -14,6 +14,7 @@
 #include "FalconParameters.h"
 #include "log.h"
 #include "OSSLFalconPrivateKey.h"
+#include "OSSLFalconPublicKey.h"
 #include "OSSLUtil.h"
 #include <openssl/core_names.h>
 #include <openssl/crypto.h>
@@ -134,6 +135,33 @@ const ByteString& OSSLFalconPrivateKey::getPublicValue() const
 	return publicValue;
 }
 
+ByteString OSSLFalconPrivateKey::getPublicKeyInfo()
+{
+	ByteString der;
+	if (publicValue.size() == 0) return der;
+	EVP_PKEY* key = getOSSLKey();
+	if (key == NULL) return der;
+	const int length = i2d_PUBKEY(key, NULL);
+	if (length <= 0) return der;
+	der.resize(length);
+	unsigned char* output = der.byte_str();
+	if (i2d_PUBKEY(key, &output) != length) der.wipe();
+	return der;
+}
+
+bool OSSLFalconPrivateKey::setPublicKeyInfo(const ByteString& publicKeyInfo)
+{
+	if (publicKeyInfo.size() == 0) return false;
+	const unsigned char* input = publicKeyInfo.const_byte_str();
+	EVP_PKEY* key = d2i_PUBKEY(NULL, &input, publicKeyInfo.size());
+	OSSLFalconPublicKey publicKey;
+	const bool valid = input == publicKeyInfo.const_byte_str() + publicKeyInfo.size() &&
+		publicKey.setFromOSSL(key) && publicKey.getParameterSet() == getParameterSet();
+	EVP_PKEY_free(key);
+	if (valid) setPublicValue(publicKey.getValue());
+	return valid;
+}
+
 ByteString OSSLFalconPrivateKey::PKCS8Encode()
 {
 	ByteString der;
@@ -161,13 +189,8 @@ bool OSSLFalconPrivateKey::PKCS8Decode(const ByteString& ber)
 {
 	if (ber.size() == 0) return false;
 	const unsigned char* in = ber.const_byte_str();
-	const unsigned char* end = in + ber.size();
 	PKCS8_PRIV_KEY_INFO* p8 = d2i_PKCS8_PRIV_KEY_INFO(NULL, &in, ber.size());
-	if (p8 == NULL || in != end)
-	{
-		PKCS8_PRIV_KEY_INFO_free(p8);
-		return false;
-	}
+	if (p8 == NULL) return false;
 
 	EVP_PKEY* localPkey = EVP_PKCS82PKEY(p8);
 	PKCS8_PRIV_KEY_INFO_free(p8);

@@ -39,6 +39,10 @@ public:
 	// Get the Falcon private key component
 	virtual const ByteString& getValue() const;
 
+	// SubjectPublicKeyInfo needed by providers that encode the public key in PKCS#8.
+	virtual ByteString getPublicKeyInfo() = 0;
+	virtual bool setPublicKeyInfo(const ByteString& publicKeyInfo) = 0;
+
 	// Serialisation
 	virtual ByteString serialise() const;
 	virtual bool deserialise(ByteString& serialised);

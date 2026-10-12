@@ -42,6 +42,7 @@
 #include <config.h>
 #include <stdlib.h>
 #include <string.h>
+#include <vector>
 #include "SignVerifyTests.h"
 
 // CKA_TOKEN
@@ -272,7 +273,7 @@ CK_RV SignVerifyTests::generateMLDSA(CK_ULONG parameterSet, CK_SESSION_HANDLE hS
 #endif
 
 #ifdef WITH_FALCON
-CK_RV SignVerifyTests::generateFalcon(CK_ULONG parameterSet, CK_SESSION_HANDLE hSession, CK_BBOOL bTokenPuk, CK_BBOOL bPrivatePuk, CK_BBOOL bTokenPrk, CK_BBOOL bPrivatePrk, CK_OBJECT_HANDLE &hPuk, CK_OBJECT_HANDLE &hPrk)
+CK_RV SignVerifyTests::generateFalcon(CK_ULONG parameterSet, CK_SESSION_HANDLE hSession, CK_BBOOL bTokenPuk, CK_BBOOL bPrivatePuk, CK_BBOOL bTokenPrk, CK_BBOOL bPrivatePrk, CK_OBJECT_HANDLE &hPuk, CK_OBJECT_HANDLE &hPrk, CK_BBOOL bExtractable)
 {
 	CK_MECHANISM mechanism = { CKM_FALCON_KEY_PAIR_GEN, NULL_PTR, 0 };
 	CK_KEY_TYPE keyType = CKK_FALCON;
@@ -302,7 +303,7 @@ CK_RV SignVerifyTests::generateFalcon(CK_ULONG parameterSet, CK_SESSION_HANDLE h
 		{ CKA_SENSITIVE, &bTrue, sizeof(bTrue) },
 		{ CKA_TOKEN, &bTokenPrk, sizeof(bTokenPrk) },
 		{ CKA_PRIVATE, &bPrivatePrk, sizeof(bPrivatePrk) },
-		{ CKA_EXTRACTABLE, &bFalse, sizeof(bFalse) }
+		{ CKA_EXTRACTABLE, &bExtractable, sizeof(bExtractable) }
 	};
 
 	hPuk = CK_INVALID_HANDLE;
@@ -1022,6 +1023,109 @@ void SignVerifyTests::testFalconSignVerify(CK_ULONG parameterSet)
 	rv = generateFalcon(parameterSet,hSessionRW,ON_TOKEN,IS_PRIVATE,ON_TOKEN,IS_PRIVATE,hPuk,hPrk);
 	CPPUNIT_ASSERT(rv == CKR_OK);
 	signVerifySingle(CKM_FALCON, hSessionRO, hPuk,hPrk);
+}
+#endif
+
+#ifdef WITH_FALCON
+void SignVerifyTests::testFalconWrapUnwrap(CK_ULONG parameterSet)
+{
+	CRYPTOKI_F_PTR( C_Finalize(NULL_PTR) );
+	CK_RV rv = CRYPTOKI_F_PTR( C_Initialize(NULL_PTR) );
+	CPPUNIT_ASSERT_EQUAL(CKR_OK, rv);
+	CK_SESSION_HANDLE hSession;
+	rv = CRYPTOKI_F_PTR( C_OpenSession(m_initializedTokenSlotID,
+		CKF_SERIAL_SESSION | CKF_RW_SESSION, NULL_PTR, NULL_PTR, &hSession) );
+	CPPUNIT_ASSERT_EQUAL(CKR_OK, rv);
+	rv = CRYPTOKI_F_PTR( C_Login(hSession, CKU_USER, m_userPin1, m_userPin1Length) );
+	CPPUNIT_ASSERT_EQUAL(CKR_OK, rv);
+
+	CK_BBOOL bTrue = CK_TRUE, bFalse = CK_FALSE;
+	CK_OBJECT_CLASS secretClass = CKO_SECRET_KEY, privateClass = CKO_PRIVATE_KEY;
+	CK_KEY_TYPE aesType = CKK_AES, falconType = CKK_FALCON;
+	CK_BYTE aesValue[32] = { 0 };
+	CK_ATTRIBUTE aesTemplate[] = {
+		{ CKA_CLASS, &secretClass, sizeof(secretClass) },
+		{ CKA_KEY_TYPE, &aesType, sizeof(aesType) },
+		{ CKA_VALUE, aesValue, sizeof(aesValue) },
+		{ CKA_WRAP, &bTrue, sizeof(bTrue) },
+		{ CKA_UNWRAP, &bTrue, sizeof(bTrue) }
+	};
+	CK_OBJECT_HANDLE hWrappingKey;
+	rv = CRYPTOKI_F_PTR( C_CreateObject(hSession, aesTemplate,
+		sizeof(aesTemplate) / sizeof(CK_ATTRIBUTE), &hWrappingKey) );
+	CPPUNIT_ASSERT_EQUAL(CKR_OK, rv);
+	CK_BYTE iv[16] = { 0 };
+	CK_MECHANISM mechanisms[] = {
+		{ CKM_AES_CBC_PAD, iv, sizeof(iv) },
+#ifdef HAVE_AES_KEY_WRAP
+		{ CKM_AES_KEY_WRAP, NULL_PTR, 0 },
+#endif
+#ifdef HAVE_AES_KEY_WRAP_PAD
+		{ CKM_AES_KEY_WRAP_PAD, NULL_PTR, 0 },
+#endif
+	};
+
+	for (CK_MECHANISM& mechanism : mechanisms)
+	{
+		for (CK_BBOOL isPrivate : { CK_FALSE, CK_TRUE })
+		{
+			CK_OBJECT_HANDLE hPublicKey, hPrivateKey;
+			rv = generateFalcon(parameterSet, hSession, IN_SESSION, IS_PUBLIC,
+				ON_TOKEN, isPrivate, hPublicKey, hPrivateKey, CK_TRUE);
+			CPPUNIT_ASSERT_EQUAL(CKR_OK, rv);
+			CK_ULONG length = 0;
+			rv = CRYPTOKI_F_PTR( C_WrapKey(hSession, &mechanism, hWrappingKey,
+				hPrivateKey, NULL_PTR, &length) );
+			CPPUNIT_ASSERT_EQUAL(CKR_OK, rv);
+			std::vector<CK_BYTE> wrapped(length);
+			rv = CRYPTOKI_F_PTR( C_WrapKey(hSession, &mechanism, hWrappingKey,
+				hPrivateKey, wrapped.data(), &length) );
+			CPPUNIT_ASSERT_EQUAL(CKR_OK, rv);
+			rv = CRYPTOKI_F_PTR( C_DestroyObject(hSession, hPrivateKey) );
+			CPPUNIT_ASSERT_EQUAL(CKR_OK, rv);
+
+			CK_ATTRIBUTE privateTemplate[] = {
+				{ CKA_CLASS, &privateClass, sizeof(privateClass) },
+				{ CKA_KEY_TYPE, &falconType, sizeof(falconType) },
+				{ CKA_PRIVATE, &isPrivate, sizeof(isPrivate) },
+				{ CKA_SIGN, &bTrue, sizeof(bTrue) },
+				{ CKA_SENSITIVE, &bTrue, sizeof(bTrue) },
+				{ CKA_EXTRACTABLE, &bTrue, sizeof(bTrue) }
+			};
+			rv = CRYPTOKI_F_PTR( C_UnwrapKey(hSession, &mechanism, hWrappingKey,
+				wrapped.data(), length, privateTemplate,
+				sizeof(privateTemplate) / sizeof(CK_ATTRIBUTE), &hPrivateKey) );
+			CPPUNIT_ASSERT_EQUAL(CKR_OK, rv);
+			CK_ULONG storedParameterSet = 0;
+			CK_ATTRIBUTE parameterAttribute = {
+				CKA_PARAMETER_SET, &storedParameterSet, sizeof(storedParameterSet)
+			};
+			rv = CRYPTOKI_F_PTR( C_GetAttributeValue(hSession, hPrivateKey,
+				&parameterAttribute, 1) );
+			CPPUNIT_ASSERT_EQUAL(CKR_OK, rv);
+			CPPUNIT_ASSERT(storedParameterSet == parameterSet);
+			signVerifySingle(CKM_FALCON, hSession, hPublicKey, hPrivateKey);
+			// Wrapping the restored key must not depend on a public-key object.
+			rv = CRYPTOKI_F_PTR( C_DestroyObject(hSession, hPublicKey) );
+			CPPUNIT_ASSERT_EQUAL(CKR_OK, rv);
+			rv = CRYPTOKI_F_PTR( C_WrapKey(hSession, &mechanism, hWrappingKey,
+				hPrivateKey, wrapped.data(), &length) );
+			CPPUNIT_ASSERT_EQUAL(CKR_OK, rv);
+			CK_ATTRIBUTE extractableAttribute = {
+				CKA_EXTRACTABLE, &bFalse, sizeof(bFalse)
+			};
+			rv = CRYPTOKI_F_PTR( C_SetAttributeValue(hSession, hPrivateKey,
+				&extractableAttribute, 1) );
+			CPPUNIT_ASSERT_EQUAL(CKR_OK, rv);
+			rv = CRYPTOKI_F_PTR( C_WrapKey(hSession, &mechanism, hWrappingKey,
+				hPrivateKey, NULL_PTR, &length) );
+			CPPUNIT_ASSERT_EQUAL(CKR_KEY_UNEXTRACTABLE, rv);
+			rv = CRYPTOKI_F_PTR( C_DestroyObject(hSession, hPrivateKey) );
+			CPPUNIT_ASSERT_EQUAL(CKR_OK, rv);
+		}
+	}
+	rv = CRYPTOKI_F_PTR( C_CloseSession(hSession) );
+	CPPUNIT_ASSERT_EQUAL(CKR_OK, rv);
 }
 #endif
 
