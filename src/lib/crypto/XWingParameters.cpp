@@ -15,6 +15,7 @@
 
 // The type
 /*static*/ const char* XWingParameters::type = "X-Wing parameters";
+/*static*/ const char* XWingParameters::X_WING_OID = "1.3.6.1.4.1.62253.25722";
 
 // Are the parameters of the given type?
 bool XWingParameters::areOfType(const char* inType)

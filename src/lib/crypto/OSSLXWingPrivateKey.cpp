@@ -24,8 +24,6 @@
 
 namespace
 {
-const char* X_WING_OID = "1.3.6.1.4.1.62253.25722";
-
 bool shake256(const ByteString& input, unsigned char* output,
 	size_t outputLen)
 {
@@ -215,7 +213,7 @@ ByteString OSSLXWingPrivateKey::PKCS8Encode()
 	if (getValue().size() != XWingParameters::X_WING_PRIV_LENGTH) return der;
 
 	PKCS8_PRIV_KEY_INFO* p8 = PKCS8_PRIV_KEY_INFO_new();
-	ASN1_OBJECT* oid = OBJ_txt2obj(X_WING_OID, 1);
+	ASN1_OBJECT* oid = OBJ_txt2obj(XWingParameters::X_WING_OID, 1);
 	unsigned char* privateKey = static_cast<unsigned char*>(
 		OPENSSL_memdup(getValue().const_byte_str(), getValue().size()));
 	if (p8 == NULL || oid == NULL || privateKey == NULL ||
@@ -262,7 +260,7 @@ bool OSSLXWingPrivateKey::PKCS8Decode(const ByteString& ber)
 	if (algorithmIdentifier != NULL)
 		X509_ALGOR_get0(NULL, &parameterType, &parameterValue,
 		                algorithmIdentifier);
-	ASN1_OBJECT* expectedAlgorithm = OBJ_txt2obj(X_WING_OID, 1);
+	ASN1_OBJECT* expectedAlgorithm = OBJ_txt2obj(XWingParameters::X_WING_OID, 1);
 	const bool valid = extracted && expectedAlgorithm != NULL &&
 		OBJ_cmp(algorithm, expectedAlgorithm) == 0 &&
 		parameterType == V_ASN1_UNDEF &&

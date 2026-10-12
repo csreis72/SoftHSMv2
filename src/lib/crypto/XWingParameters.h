@@ -20,6 +20,7 @@ class XWingParameters : public AsymmetricParameters
 public:
 	// The type
 	static const char* type;
+	static const char* X_WING_OID;
 
 	// Are the parameters of the given type?
 	virtual bool areOfType(const char* inType);

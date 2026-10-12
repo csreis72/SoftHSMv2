@@ -39,6 +39,10 @@
 #include "softhsm2-util.h"
 #include "softhsm2-util-ossl.h"
 #include "OSSLComp.h"
+#ifdef WITH_X_WING
+#include "OSSLXWingPrivateKey.h"
+#include "XWingParameters.h"
+#endif
 
 #include <stdio.h>
 #include <string.h>
@@ -50,6 +54,8 @@
 #include <openssl/err.h>
 #include <openssl/pkcs12.h>
 #include <openssl/objects.h>
+
+static PKCS8_PRIV_KEY_INFO* crypto_read_pkcs8_file(char* filePath, char* filePIN);
 
 // Init OpenSSL
 void crypto_init()
@@ -141,7 +147,30 @@ int crypto_import_key_pair
 	int noPublicKey
 )
 {
+#ifdef WITH_X_WING
+	PKCS8_PRIV_KEY_INFO* keyInfo = crypto_read_pkcs8_file(filePath, filePIN);
+	if (keyInfo == NULL) return 1;
+
+	const ASN1_OBJECT* algorithm = NULL;
+	ASN1_OBJECT* xwingOID = OBJ_txt2obj(XWingParameters::X_WING_OID, 1);
+	const bool isXWing = xwingOID != NULL &&
+		PKCS8_pkey_get0(&algorithm, NULL, NULL, NULL, keyInfo) > 0 &&
+		OBJ_cmp(algorithm, xwingOID) == 0;
+	ASN1_OBJECT_free(xwingOID);
+	if (isXWing)
+	{
+		int result = crypto_save_xwing(hSession, label, objID, objIDLen,
+			noPublicKey, keyInfo);
+		PKCS8_PRIV_KEY_INFO_free(keyInfo);
+		return result;
+	}
+
+	EVP_PKEY* pkey = EVP_PKCS82PKEY(keyInfo);
+	PKCS8_PRIV_KEY_INFO_free(keyInfo);
+	if (pkey == NULL) fprintf(stderr, "ERROR: Could not convert the key.\n");
+#else
 	EVP_PKEY* pkey = crypto_read_file(filePath, filePIN);
+#endif
 	if (pkey == NULL)
 	{
 		return 1;
@@ -435,11 +464,10 @@ cleanup:
 }
 
 // Read the key from file
-EVP_PKEY* crypto_read_file(char* filePath, char* filePIN)
+static PKCS8_PRIV_KEY_INFO* crypto_read_pkcs8_file(char* filePath, char* filePIN)
 {
 	BIO* in = NULL;
 	PKCS8_PRIV_KEY_INFO* p8inf = NULL;
-	EVP_PKEY* pkey = NULL;
 	X509_SIG* p8 = NULL;
 
 	if (!(in = BIO_new_file(filePath, "rb")))
@@ -484,8 +512,16 @@ EVP_PKEY* crypto_read_file(char* filePath, char* filePIN)
 		}
 	}
 
+	return p8inf;
+}
+
+EVP_PKEY* crypto_read_file(char* filePath, char* filePIN)
+{
+	PKCS8_PRIV_KEY_INFO* p8inf = crypto_read_pkcs8_file(filePath, filePIN);
+	if (p8inf == NULL) return NULL;
+
 	// Convert the PKCS#8 to OpenSSL
-	pkey = EVP_PKCS82PKEY(p8inf);
+	EVP_PKEY* pkey = EVP_PKCS82PKEY(p8inf);
 	PKCS8_PRIV_KEY_INFO_free(p8inf);
 	if (!pkey)
 	{
@@ -1626,4 +1662,75 @@ void crypto_free_mlkem(mlkem_key_material_t* keyMat)
 	free(keyMat);
 }
 
+#endif
+
+#ifdef WITH_X_WING
+// Save the key data in PKCS#11.
+int crypto_save_xwing(CK_SESSION_HANDLE hSession, char* label, char* objID,
+	size_t objIDLen, int noPublicKey, PKCS8_PRIV_KEY_INFO* keyInfo)
+{
+	ByteString der;
+	ByteString publicValue;
+	OSSLXWingPrivateKey privateKey;
+	const int length = i2d_PKCS8_PRIV_KEY_INFO(keyInfo, NULL);
+	if (length > 0)
+	{
+		der.resize(length);
+		unsigned char* output = der.byte_str();
+		if (i2d_PKCS8_PRIV_KEY_INFO(keyInfo, &output) != length) der.wipe();
+	}
+	if (!privateKey.PKCS8Decode(der) || !privateKey.getPublicValue(publicValue))
+	{
+		fprintf(stderr, "ERROR: Could not convert the X-Wing key material to binary information.\n");
+		return 1;
+	}
+
+	ByteString privateValue = privateKey.getValue();
+	CK_OBJECT_CLASS pubClass = CKO_PUBLIC_KEY, privClass = CKO_PRIVATE_KEY;
+	CK_KEY_TYPE keyType = CKK_X_WING;
+	CK_BBOOL ckTrue = CK_TRUE, ckFalse = CK_FALSE;
+	CK_BBOOL ckToken = noPublicKey ? CK_FALSE : CK_TRUE;
+	CK_ATTRIBUTE pubTemplate[] = {
+		{ CKA_CLASS, &pubClass, sizeof(pubClass) },
+		{ CKA_KEY_TYPE, &keyType, sizeof(keyType) },
+		{ CKA_LABEL, label, strlen(label) },
+		{ CKA_ID, objID, objIDLen },
+		{ CKA_TOKEN, &ckToken, sizeof(ckToken) },
+		{ CKA_ENCAPSULATE, &ckTrue, sizeof(ckTrue) },
+		{ CKA_VALUE, publicValue.byte_str(), publicValue.size() }
+	};
+	CK_ATTRIBUTE privTemplate[] = {
+		{ CKA_CLASS, &privClass, sizeof(privClass) },
+		{ CKA_KEY_TYPE, &keyType, sizeof(keyType) },
+		{ CKA_LABEL, label, strlen(label) },
+		{ CKA_ID, objID, objIDLen },
+		{ CKA_DECAPSULATE, &ckTrue, sizeof(ckTrue) },
+		{ CKA_SENSITIVE, &ckTrue, sizeof(ckTrue) },
+		{ CKA_TOKEN, &ckTrue, sizeof(ckTrue) },
+		{ CKA_PRIVATE, &ckTrue, sizeof(ckTrue) },
+		{ CKA_EXTRACTABLE, &ckFalse, sizeof(ckFalse) },
+		{ CKA_VALUE, privateValue.byte_str(), privateValue.size() }
+	};
+
+	CK_OBJECT_HANDLE hPrivateKey, hPublicKey;
+	CK_RV rv = p11->C_CreateObject(hSession, privTemplate,
+		sizeof(privTemplate) / sizeof(CK_ATTRIBUTE), &hPrivateKey);
+	if (rv != CKR_OK)
+	{
+		fprintf(stderr, "ERROR: Could not save the private key in the token. "
+			"Maybe the algorithm is not supported.\n");
+		return 1;
+	}
+	rv = p11->C_CreateObject(hSession, pubTemplate,
+		sizeof(pubTemplate) / sizeof(CK_ATTRIBUTE), &hPublicKey);
+	if (rv != CKR_OK)
+	{
+		p11->C_DestroyObject(hSession, hPrivateKey);
+		fprintf(stderr, "ERROR: Could not save the public key in the token.\n");
+		return 1;
+	}
+
+	printf("The X-Wing key pair with label=%s has been imported.\n", label);
+	return 0;
+}
 #endif
