@@ -37,8 +37,7 @@ OSSLFalconPrivateKey::~OSSLFalconPrivateKey()
 }
 
 OSSLFalconPrivateKey::OSSLFalconPrivateKey(OSSLFalconPrivateKey&& other) noexcept
-	: FalconPrivateKey(std::move(other)), pkey(other.pkey),
-	  publicValue(std::move(other.publicValue))
+	: FalconPrivateKey(std::move(other)), pkey(other.pkey)
 {
 	other.pkey = NULL;
 }
@@ -50,7 +49,6 @@ OSSLFalconPrivateKey& OSSLFalconPrivateKey::operator=(OSSLFalconPrivateKey&& oth
 		FalconPrivateKey::operator=(std::move(other));
 		EVP_PKEY_free(pkey);
 		pkey = other.pkey;
-		publicValue = std::move(other.publicValue);
 		other.pkey = NULL;
 	}
 	return *this;
@@ -80,14 +78,13 @@ bool OSSLFalconPrivateKey::setFromOSSL(const EVP_PKEY* inFalconKey)
 	}
 
 	unsigned char privateKey[FalconParameters::FALCON_1024_PRIV_LENGTH];
-	unsigned char publicKey[FalconParameters::FALCON_1024_PUB_LENGTH];
 	size_t privateKeyLength = 0;
 	size_t publicKeyLength = 0;
 	const bool privateOK = EVP_PKEY_get_octet_string_param(inFalconKey,
 		OSSL_PKEY_PARAM_PRIV_KEY, privateKey, sizeof(privateKey),
 		&privateKeyLength) > 0 && privateKeyLength == expectedPrivateLength;
 	const bool publicOK = EVP_PKEY_get_octet_string_param(inFalconKey,
-		OSSL_PKEY_PARAM_PUB_KEY, publicKey, sizeof(publicKey),
+		OSSL_PKEY_PARAM_PUB_KEY, NULL, 0,
 		&publicKeyLength) > 0 && publicKeyLength == expectedPublicLength;
 
 	if (!privateOK)
@@ -98,10 +95,19 @@ bool OSSLFalconPrivateKey::setFromOSSL(const EVP_PKEY* inFalconKey)
 	}
 
 	ByteString privateValue(privateKey, privateKeyLength);
-	setValue(privateValue);
-	if (publicOK) setPublicValue(ByteString(publicKey, publicKeyLength));
-	privateValue.wipe();
 	OPENSSL_cleanse(privateKey, sizeof(privateKey));
+	ByteString info;
+	if (publicOK)
+	{
+		const int length = i2d_PUBKEY(inFalconKey, NULL);
+		if (length <= 0) return false;
+		info.resize(length);
+		unsigned char* output = info.byte_str();
+		if (i2d_PUBKEY(inFalconKey, &output) != length) return false;
+	}
+	setValue(privateValue);
+	setPublicKeyInfo(info);
+	privateValue.wipe();
 	return true;
 }
 
@@ -120,46 +126,13 @@ void OSSLFalconPrivateKey::invalidateOSSLKey()
 void OSSLFalconPrivateKey::setValue(const ByteString& inValue)
 {
 	FalconPrivateKey::setValue(inValue);
-	publicValue.wipe();
 	invalidateOSSLKey();
 }
 
-void OSSLFalconPrivateKey::setPublicValue(const ByteString& inValue)
+void OSSLFalconPrivateKey::setPublicKeyInfo(const ByteString& inPublicKeyInfo)
 {
-	publicValue = inValue;
+	FalconPrivateKey::setPublicKeyInfo(inPublicKeyInfo);
 	invalidateOSSLKey();
-}
-
-const ByteString& OSSLFalconPrivateKey::getPublicValue() const
-{
-	return publicValue;
-}
-
-ByteString OSSLFalconPrivateKey::getPublicKeyInfo()
-{
-	ByteString der;
-	if (publicValue.size() == 0) return der;
-	EVP_PKEY* key = getOSSLKey();
-	if (key == NULL) return der;
-	const int length = i2d_PUBKEY(key, NULL);
-	if (length <= 0) return der;
-	der.resize(length);
-	unsigned char* output = der.byte_str();
-	if (i2d_PUBKEY(key, &output) != length) der.wipe();
-	return der;
-}
-
-bool OSSLFalconPrivateKey::setPublicKeyInfo(const ByteString& publicKeyInfo)
-{
-	if (publicKeyInfo.size() == 0) return false;
-	const unsigned char* input = publicKeyInfo.const_byte_str();
-	EVP_PKEY* key = d2i_PUBKEY(NULL, &input, publicKeyInfo.size());
-	OSSLFalconPublicKey publicKey;
-	const bool valid = input == publicKeyInfo.const_byte_str() + publicKeyInfo.size() &&
-		publicKey.setFromOSSL(key) && publicKey.getParameterSet() == getParameterSet();
-	EVP_PKEY_free(key);
-	if (valid) setPublicValue(publicKey.getValue());
-	return valid;
 }
 
 ByteString OSSLFalconPrivateKey::PKCS8Encode()
@@ -218,17 +191,24 @@ void OSSLFalconPrivateKey::createOSSLKey()
 	}
 
 	ByteString localValue = getValue();
-	const size_t expectedPublicLength =
-		parameterSet == FalconParameters::FALCON_512_PARAMETER_SET ?
-		FalconParameters::FALCON_512_PUB_LENGTH :
-		FalconParameters::FALCON_1024_PUB_LENGTH;
+	ByteString publicValue;
+	if (getPublicKeyInfo().size() != 0)
+	{
+		const unsigned char* input = getPublicKeyInfo().const_byte_str();
+		EVP_PKEY* publicPkey = d2i_PUBKEY(NULL, &input, getPublicKeyInfo().size());
+		OSSLFalconPublicKey publicKey;
+		publicKey.setFromOSSL(publicPkey);
+		if (publicKey.getParameterSet() == parameterSet)
+			publicValue = publicKey.getValue();
+		EVP_PKEY_free(publicPkey);
+	}
 
 	OSSL_PARAM params[3];
 	OSSL_PARAM* param = params;
 	*param++ = OSSL_PARAM_construct_octet_string(OSSL_PKEY_PARAM_PRIV_KEY,
 		localValue.byte_str(), localValue.size());
 	int selection = EVP_PKEY_PRIVATE_KEY;
-	if (publicValue.size() == expectedPublicLength)
+	if (publicValue.size() != 0)
 	{
 		*param++ = OSSL_PARAM_construct_octet_string(OSSL_PKEY_PARAM_PUB_KEY,
 			publicValue.byte_str(), publicValue.size());

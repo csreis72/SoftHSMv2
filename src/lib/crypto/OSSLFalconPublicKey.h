@@ -33,7 +33,7 @@ public:
 	virtual bool isOfType(const char* inType);
 	virtual void setValue(const ByteString& value);
 
-	bool setFromOSSL(const EVP_PKEY* inFalconKey);
+	virtual void setFromOSSL(const EVP_PKEY* inFalconKey);
 	EVP_PKEY* getOSSLKey();
 
 private:

@@ -20,6 +20,7 @@
 #include "OSSLUtil.h"
 #include <openssl/err.h>
 #include <openssl/evp.h>
+#include <openssl/x509.h>
 
 bool OSSLFalcon::sign(PrivateKey* privateKey, const ByteString& dataToSign,
 	ByteString& signature, const AsymMech::Type mechanism,
@@ -98,19 +99,19 @@ bool OSSLFalcon::sign(PrivateKey* privateKey, const ByteString& dataToSign,
 bool OSSLFalcon::signInit(PrivateKey* /*privateKey*/,
 	const AsymMech::Type /*mechanism*/, const MechanismParam* /*mechanismParam*/)
 {
-	ERROR_MSG("Falcon signing is not supported yet");
+	ERROR_MSG("Falcon does not support multi part signing");
 	return false;
 }
 
 bool OSSLFalcon::signUpdate(const ByteString& /*dataToSign*/)
 {
-	ERROR_MSG("Falcon signing is not supported yet");
+	ERROR_MSG("Falcon does not support multi part signing");
 	return false;
 }
 
 bool OSSLFalcon::signFinal(ByteString& /*signature*/)
 {
-	ERROR_MSG("Falcon signing is not supported yet");
+	ERROR_MSG("Falcon does not support multi part signing");
 	return false;
 }
 
@@ -182,19 +183,19 @@ bool OSSLFalcon::verify(PublicKey* publicKey, const ByteString& originalData,
 bool OSSLFalcon::verifyInit(PublicKey* /*publicKey*/,
 	const AsymMech::Type /*mechanism*/, const MechanismParam* /*mechanismParam*/)
 {
-	ERROR_MSG("Falcon verification is not supported yet");
+	ERROR_MSG("Falcon does not support multi part verifying");
 	return false;
 }
 
 bool OSSLFalcon::verifyUpdate(const ByteString& /*originalData*/)
 {
-	ERROR_MSG("Falcon verification is not supported yet");
+	ERROR_MSG("Falcon does not support multi part verifying");
 	return false;
 }
 
 bool OSSLFalcon::verifyFinal(const ByteString& /*signature*/)
 {
-	ERROR_MSG("Falcon verification is not supported yet");
+	ERROR_MSG("Falcon does not support multi part verifying");
 	return false;
 }
 
@@ -264,8 +265,9 @@ bool OSSLFalcon::generateKeyPair(AsymmetricKeyPair** ppKeyPair,
 		static_cast<OSSLFalconPrivateKey*>(keyPair->getPrivateKey());
 	OSSLFalconPublicKey* publicKey =
 		static_cast<OSSLFalconPublicKey*>(keyPair->getPublicKey());
+	publicKey->setFromOSSL(generatedKey);
 	if (!privateKey->setFromOSSL(generatedKey) ||
-		!publicKey->setFromOSSL(generatedKey))
+		publicKey->getValue().size() == 0)
 	{
 		delete keyPair;
 		EVP_PKEY_free(generatedKey);
@@ -298,7 +300,20 @@ bool OSSLFalcon::reconstructKeyPair(AsymmetricKeyPair** ppKeyPair,
 		delete keyPair;
 		return false;
 	}
-	privateKey->setPublicValue(publicKey->getValue());
+	// Older serialisations kept the public component only in the key pair.
+	if (privateKey->getPublicKeyInfo().size() == 0)
+	{
+		EVP_PKEY* publicPkey = publicKey->getOSSLKey();
+		const int length = publicPkey == NULL ? 0 : i2d_PUBKEY(publicPkey, NULL);
+		if (length > 0)
+		{
+			ByteString info;
+			info.resize(length);
+			unsigned char* output = info.byte_str();
+			if (i2d_PUBKEY(publicPkey, &output) == length)
+				privateKey->setPublicKeyInfo(info);
+		}
+	}
 	*ppKeyPair = keyPair;
 	return true;
 }

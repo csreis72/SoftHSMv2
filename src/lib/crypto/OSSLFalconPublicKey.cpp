@@ -53,9 +53,9 @@ OSSLFalconPublicKey& OSSLFalconPublicKey::operator=(OSSLFalconPublicKey&& other)
 
 /*static*/ const char* OSSLFalconPublicKey::type = "OpenSSL Falcon public key";
 
-bool OSSLFalconPublicKey::setFromOSSL(const EVP_PKEY* inFalconKey)
+void OSSLFalconPublicKey::setFromOSSL(const EVP_PKEY* inFalconKey)
 {
-	if (inFalconKey == NULL) return false;
+	if (inFalconKey == NULL) return;
 
 	size_t expectedLength = 0;
 	if (EVP_PKEY_is_a(inFalconKey, "falcon512"))
@@ -63,7 +63,7 @@ bool OSSLFalconPublicKey::setFromOSSL(const EVP_PKEY* inFalconKey)
 	else if (EVP_PKEY_is_a(inFalconKey, "falcon1024"))
 		expectedLength = FalconParameters::FALCON_1024_PUB_LENGTH;
 	else
-		return false;
+		return;
 
 	unsigned char publicKey[FalconParameters::FALCON_1024_PUB_LENGTH];
 	size_t publicKeyLength = 0;
@@ -72,11 +72,10 @@ bool OSSLFalconPublicKey::setFromOSSL(const EVP_PKEY* inFalconKey)
 		publicKeyLength != expectedLength)
 	{
 		ERROR_MSG("Could not get Falcon public key");
-		return false;
+		return;
 	}
 
 	setValue(ByteString(publicKey, publicKeyLength));
-	return true;
 }
 
 bool OSSLFalconPublicKey::isOfType(const char* inType)

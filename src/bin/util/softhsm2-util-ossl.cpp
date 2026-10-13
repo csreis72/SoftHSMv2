@@ -1661,7 +1661,8 @@ int crypto_save_falcon(CK_SESSION_HANDLE hSession, char* label, char* objID,
 {
 	OSSLFalconPrivateKey privateKey;
 	OSSLFalconPublicKey publicKey;
-	if (!privateKey.setFromOSSL(falcon) || !publicKey.setFromOSSL(falcon))
+	publicKey.setFromOSSL(falcon);
+	if (!privateKey.setFromOSSL(falcon) || publicKey.getValue().size() == 0)
 	{
 		fprintf(stderr, "ERROR: Could not convert the Falcon key material to binary information.\n");
 		return 1;

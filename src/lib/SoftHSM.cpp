@@ -7423,7 +7423,7 @@ CK_RV SoftHSM::C_WrapKey
 #endif
 #ifdef WITH_FALCON
 			case CKK_FALCON:
-				rv = getFalconPrivateKey((FalconPrivateKey*)privateKey, token, key, true);
+				rv = getFalconPrivateKey((FalconPrivateKey*)privateKey, token, key);
 				break;
 #endif
 #ifdef WITH_ML_KEM
@@ -11325,7 +11325,7 @@ CK_RV SoftHSM::generateFalcon
 
 				ByteString value;
 				if (isPublicKeyPrivate)
-					token->encrypt(publicKey->getValue(), value);
+					bOK = bOK && token->encrypt(publicKey->getValue(), value);
 				else
 					value = publicKey->getValue();
 				bOK = bOK && osobject->setAttribute(
@@ -14727,7 +14727,7 @@ CK_RV SoftHSM::getEDPublicKey(EDPublicKey* publicKey, Token* token, OSObject* ke
 
 #ifdef WITH_FALCON
 CK_RV SoftHSM::getFalconPrivateKey(FalconPrivateKey* privateKey, Token* token,
-	OSObject* key, bool includePublicKeyInfo)
+	OSObject* key)
 {
 	if (privateKey == NULL) return CKR_ARGUMENTS_BAD;
 	if (token == NULL) return CKR_ARGUMENTS_BAD;
@@ -14747,20 +14747,17 @@ CK_RV SoftHSM::getFalconPrivateKey(FalconPrivateKey* privateKey, Token* token,
 
 	privateKey->setValue(value);
 	value.wipe();
-	if (includePublicKeyInfo)
+	ByteString publicKeyInfo = key->getByteStringValue(CKA_PUBLIC_KEY_INFO);
+	if (publicKeyInfo.size() != 0)
 	{
-		ByteString publicKeyInfo = key->getByteStringValue(CKA_PUBLIC_KEY_INFO);
-		if (publicKeyInfo.size() != 0)
+		if (isKeyPrivate)
 		{
-			if (isKeyPrivate)
-			{
-				ByteString decryptedInfo;
-				if (!token->decrypt(publicKeyInfo, decryptedInfo)) return CKR_GENERAL_ERROR;
-				publicKeyInfo = decryptedInfo;
-			}
-			if (!privateKey->setPublicKeyInfo(publicKeyInfo)) return CKR_GENERAL_ERROR;
+			ByteString decryptedInfo;
+			if (!token->decrypt(publicKeyInfo, decryptedInfo)) return CKR_GENERAL_ERROR;
+			publicKeyInfo = decryptedInfo;
 		}
 	}
+	privateKey->setPublicKeyInfo(publicKeyInfo);
 	return CKR_OK;
 }
 

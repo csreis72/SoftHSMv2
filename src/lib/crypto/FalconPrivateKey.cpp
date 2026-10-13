@@ -58,6 +58,7 @@ unsigned long FalconPrivateKey::getOutputLength() const
 void FalconPrivateKey::setValue(const ByteString& inValue)
 {
 	value = inValue;
+	publicKeyInfo.wipe();
 }
 
 const ByteString& FalconPrivateKey::getValue() const
@@ -65,10 +66,20 @@ const ByteString& FalconPrivateKey::getValue() const
 	return value;
 }
 
+void FalconPrivateKey::setPublicKeyInfo(const ByteString& inPublicKeyInfo)
+{
+	publicKeyInfo = inPublicKeyInfo;
+}
+
+const ByteString& FalconPrivateKey::getPublicKeyInfo() const
+{
+	return publicKeyInfo;
+}
+
 // Serialisation
 ByteString FalconPrivateKey::serialise() const
 {
-	return value.serialise();
+	return value.serialise() + publicKeyInfo.serialise();
 }
 
 bool FalconPrivateKey::deserialise(ByteString& serialised)
@@ -81,5 +92,6 @@ bool FalconPrivateKey::deserialise(ByteString& serialised)
 	}
 
 	setValue(deserialisedValue);
+	setPublicKeyInfo(ByteString::chainDeserialise(serialised));
 	return true;
 }

@@ -33,20 +33,16 @@ public:
 	virtual bool isOfType(const char* inType);
 	virtual void setValue(const ByteString& value);
 
-	void setPublicValue(const ByteString& value);
-	const ByteString& getPublicValue() const;
-	virtual ByteString getPublicKeyInfo();
-	virtual bool setPublicKeyInfo(const ByteString& publicKeyInfo);
+	virtual void setPublicKeyInfo(const ByteString& publicKeyInfo);
 
 	virtual ByteString PKCS8Encode();
 	virtual bool PKCS8Decode(const ByteString& ber);
 
-	bool setFromOSSL(const EVP_PKEY* inFalconKey);
+	virtual bool setFromOSSL(const EVP_PKEY* inFalconKey);
 	EVP_PKEY* getOSSLKey();
 
 private:
 	EVP_PKEY* pkey;
-	ByteString publicValue;
 	void createOSSLKey();
 	void invalidateOSSLKey();
 };

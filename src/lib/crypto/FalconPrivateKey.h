@@ -39,9 +39,9 @@ public:
 	// Get the Falcon private key component
 	virtual const ByteString& getValue() const;
 
-	// SubjectPublicKeyInfo needed by providers that encode the public key in PKCS#8.
-	virtual ByteString getPublicKeyInfo() = 0;
-	virtual bool setPublicKeyInfo(const ByteString& publicKeyInfo) = 0;
+	// Public component used by the PKCS#8 encoder.
+	virtual void setPublicKeyInfo(const ByteString& publicKeyInfo);
+	virtual const ByteString& getPublicKeyInfo() const;
 
 	// Serialisation
 	virtual ByteString serialise() const;
@@ -49,6 +49,7 @@ public:
 
 protected:
 	ByteString value;
+	ByteString publicKeyInfo;
 };
 
 #endif // !_SOFTHSM_V2_FALCONPRIVATEKEY_H

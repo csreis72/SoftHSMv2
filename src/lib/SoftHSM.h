@@ -506,7 +506,7 @@ private:
 	CK_RV getEDPrivateKey(EDPrivateKey* privateKey, Token* token, OSObject* key);
 	CK_RV getEDPublicKey(EDPublicKey* publicKey, Token* token, OSObject* key);
 #ifdef WITH_FALCON
-	CK_RV getFalconPrivateKey(FalconPrivateKey* privateKey, Token* token, OSObject* key, bool includePublicKeyInfo = false);
+	CK_RV getFalconPrivateKey(FalconPrivateKey* privateKey, Token* token, OSObject* key);
 	CK_RV getFalconPublicKey(FalconPublicKey* publicKey, Token* token, OSObject* key);
 #endif
 	CK_RV getDHPrivateKey(DHPrivateKey* privateKey, Token* token, OSObject* key);

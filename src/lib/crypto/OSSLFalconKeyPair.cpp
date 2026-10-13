@@ -16,17 +16,13 @@
 void OSSLFalconKeyPair::setPublicKey(OSSLFalconPublicKey& publicKey)
 {
 	pubKey.setValue(publicKey.getValue());
-	if (privKey.getValue().size() != 0)
-		privKey.setPublicValue(publicKey.getValue());
 }
 
 void OSSLFalconKeyPair::setPrivateKey(OSSLFalconPrivateKey& privateKey)
 {
+	ByteString publicKeyInfo = privateKey.getPublicKeyInfo();
 	privKey.setValue(privateKey.getValue());
-	if (privateKey.getPublicValue().size() != 0)
-		privKey.setPublicValue(privateKey.getPublicValue());
-	else if (pubKey.getValue().size() != 0)
-		privKey.setPublicValue(pubKey.getValue());
+	privKey.setPublicKeyInfo(publicKeyInfo);
 }
 
 PublicKey* OSSLFalconKeyPair::getPublicKey()

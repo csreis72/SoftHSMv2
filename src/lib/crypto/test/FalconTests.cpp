@@ -22,6 +22,8 @@
 #include "FalconPrivateKey.h"
 #include "FalconPublicKey.h"
 #include "OSSLFalconPublicKey.h"
+#include "OSSLFalconPrivateKey.h"
+#include "OSSLFalconKeyPair.h"
 #include "OSSLUtil.h"
 #include <openssl/evp.h>
 
@@ -148,6 +150,8 @@ void FalconTests::testSerialisation()
 		FalconPrivateKey* privateKey =
 			static_cast<FalconPrivateKey*>(keyPair->getPrivateKey());
 		ByteString serialisedKeyPair = keyPair->serialise();
+		static_cast<OSSLFalconKeyPair*>(keyPair)->setPrivateKey(
+			*static_cast<OSSLFalconPrivateKey*>(privateKey));
 
 		AsymmetricKeyPair* reconstructedKeyPair = NULL;
 		CPPUNIT_ASSERT(falcon->reconstructKeyPair(&reconstructedKeyPair,
@@ -180,6 +184,16 @@ void FalconTests::testSerialisation()
 		CPPUNIT_ASSERT(serialisedPrivateKey.size() == 0);
 		CPPUNIT_ASSERT(privateKey->getValue() ==
 			static_cast<FalconPrivateKey*>(reconstructedPrivate)->getValue());
+		CPPUNIT_ASSERT(privateKey->getPublicKeyInfo() ==
+			static_cast<FalconPrivateKey*>(reconstructedPrivate)->getPublicKeyInfo());
+		CPPUNIT_ASSERT(reconstructedPrivate->PKCS8Encode().size() != 0);
+
+		ByteString legacyPair = publicKey->serialise().serialise() +
+			privateKey->getValue().serialise().serialise();
+		AsymmetricKeyPair* reconstructedLegacyPair = NULL;
+		CPPUNIT_ASSERT(falcon->reconstructKeyPair(&reconstructedLegacyPair, legacyPair));
+		CPPUNIT_ASSERT(reconstructedLegacyPair->getPrivateKey()->PKCS8Encode().size() != 0);
+		falcon->recycleKeyPair(reconstructedLegacyPair);
 
 		falcon->recyclePublicKey(reconstructedPublic);
 		falcon->recyclePrivateKey(reconstructedPrivate);
@@ -192,140 +206,164 @@ void FalconTests::testSerialisation()
 
 void FalconTests::testPKCS8()
 {
-	FalconParameters* parameters = new FalconParameters();
-	parameters->setParameterSet(FalconParameters::FALCON_512_PARAMETER_SET);
+	for (const unsigned long parameterSet : allParameterSets)
+	{
+		FalconParameters* parameters = new FalconParameters();
+		parameters->setParameterSet(parameterSet);
 
-	AsymmetricKeyPair* keyPair = NULL;
-	CPPUNIT_ASSERT(falcon->generateKeyPair(&keyPair, parameters));
-	CPPUNIT_ASSERT(keyPair != NULL);
+		AsymmetricKeyPair* keyPair = NULL;
+		CPPUNIT_ASSERT(falcon->generateKeyPair(&keyPair, parameters));
+		CPPUNIT_ASSERT(keyPair != NULL);
 
-	FalconPrivateKey* privateKey =
-		static_cast<FalconPrivateKey*>(keyPair->getPrivateKey());
-	ByteString pkcs8 = privateKey->PKCS8Encode();
-	CPPUNIT_ASSERT(pkcs8.size() != 0);
+		FalconPrivateKey* privateKey =
+			static_cast<FalconPrivateKey*>(keyPair->getPrivateKey());
+		ByteString pkcs8 = privateKey->PKCS8Encode();
+		OSSLFalconPrivateKey* osslPrivateKey = static_cast<OSSLFalconPrivateKey*>(privateKey);
+		CPPUNIT_ASSERT(osslPrivateKey->setFromOSSL(osslPrivateKey->getOSSLKey()));
+		CPPUNIT_ASSERT(pkcs8.size() != 0);
 
-	FalconPrivateKey* decodedPrivateKey =
-		static_cast<FalconPrivateKey*>(falcon->newPrivateKey());
-	CPPUNIT_ASSERT(decodedPrivateKey != NULL);
-	CPPUNIT_ASSERT(decodedPrivateKey->PKCS8Decode(pkcs8));
-	CPPUNIT_ASSERT_EQUAL(privateKey->getParameterSet(),
-		decodedPrivateKey->getParameterSet());
-	CPPUNIT_ASSERT(privateKey->getValue() == decodedPrivateKey->getValue());
-	CPPUNIT_ASSERT(decodedPrivateKey->PKCS8Encode().size() != 0);
+		FalconPrivateKey* decodedPrivateKey =
+			static_cast<FalconPrivateKey*>(falcon->newPrivateKey());
+		CPPUNIT_ASSERT(decodedPrivateKey != NULL);
+		CPPUNIT_ASSERT(decodedPrivateKey->PKCS8Decode(pkcs8));
+		CPPUNIT_ASSERT_EQUAL(privateKey->getParameterSet(),
+			decodedPrivateKey->getParameterSet());
+		CPPUNIT_ASSERT(privateKey->getValue() == decodedPrivateKey->getValue());
+		CPPUNIT_ASSERT(decodedPrivateKey->PKCS8Encode().size() != 0);
 
-	// CKM_AES_KEY_WRAP zero-pads key data to a multiple of eight bytes.
-	ByteString paddedPKCS8 = pkcs8;
-	paddedPKCS8.resize((pkcs8.size() + 7) & ~size_t(7));
-	CPPUNIT_ASSERT(decodedPrivateKey->PKCS8Decode(paddedPKCS8));
-	CPPUNIT_ASSERT(privateKey->getValue() == decodedPrivateKey->getValue());
+		// CKM_AES_KEY_WRAP zero-pads key data to a multiple of eight bytes.
+		ByteString paddedPKCS8 = pkcs8;
+		paddedPKCS8.resize((pkcs8.size() + 7) & ~size_t(7));
+		CPPUNIT_ASSERT(decodedPrivateKey->PKCS8Decode(paddedPKCS8));
+		CPPUNIT_ASSERT(privateKey->getValue() == decodedPrivateKey->getValue());
 
-	falcon->recyclePrivateKey(decodedPrivateKey);
-	falcon->recycleKeyPair(keyPair);
-	falcon->recycleParameters(parameters);
+		falcon->recyclePrivateKey(decodedPrivateKey);
+		falcon->recycleKeyPair(keyPair);
+		falcon->recycleParameters(parameters);
+	}
 }
 
 void FalconTests::testSigning()
 {
-	FalconParameters* parameters = new FalconParameters();
-	parameters->setParameterSet(FalconParameters::FALCON_512_PARAMETER_SET);
+	for (const unsigned long parameterSet : allParameterSets)
+	{
+		FalconParameters* parameters = new FalconParameters();
+		parameters->setParameterSet(parameterSet);
 
-	AsymmetricKeyPair* keyPair = NULL;
-	CPPUNIT_ASSERT(falcon->generateKeyPair(&keyPair, parameters));
-	CPPUNIT_ASSERT(keyPair != NULL);
+		AsymmetricKeyPair* keyPair = NULL;
+		CPPUNIT_ASSERT(falcon->generateKeyPair(&keyPair, parameters));
+		CPPUNIT_ASSERT(keyPair != NULL);
 
-	ByteString dataToSign("0123456789abcdef");
-	ByteString signature;
-	CPPUNIT_ASSERT(falcon->sign(keyPair->getPrivateKey(), dataToSign,
-		signature, AsymMech::FALCON));
-	CPPUNIT_ASSERT(signature.size() > 0);
-	CPPUNIT_ASSERT(signature.size() <=
-		FalconParameters::FALCON_512_SIGNATURE_LENGTH);
-	CPPUNIT_ASSERT(verifyFalconSignature(
-		static_cast<FalconPublicKey*>(keyPair->getPublicKey()),
-		dataToSign, signature));
+		ByteString dataToSign("0123456789abcdef");
+		ByteString signature;
+		CPPUNIT_ASSERT(falcon->sign(keyPair->getPrivateKey(), dataToSign,
+			signature, AsymMech::FALCON));
+		CPPUNIT_ASSERT(signature.size() > 0);
+		CPPUNIT_ASSERT(signature.size() <=
+			keyPair->getPrivateKey()->getOutputLength());
+		CPPUNIT_ASSERT(verifyFalconSignature(
+			static_cast<FalconPublicKey*>(keyPair->getPublicKey()),
+			dataToSign, signature));
 
-	CPPUNIT_ASSERT(!falcon->sign(NULL, dataToSign, signature,
-		AsymMech::FALCON));
-	CPPUNIT_ASSERT(!falcon->sign(keyPair->getPrivateKey(), dataToSign,
-		signature, AsymMech::Unknown));
+		CPPUNIT_ASSERT(!falcon->sign(NULL, dataToSign, signature,
+			AsymMech::FALCON));
+		CPPUNIT_ASSERT(!falcon->sign(keyPair->getPrivateKey(), dataToSign,
+			signature, AsymMech::Unknown));
 
-	falcon->recycleKeyPair(keyPair);
-	falcon->recycleParameters(parameters);
+		falcon->recycleKeyPair(keyPair);
+		falcon->recycleParameters(parameters);
+	}
 }
 
 void FalconTests::testSigningWithReconstructedPrivateKey()
 {
-	FalconParameters* parameters = new FalconParameters();
-	parameters->setParameterSet(FalconParameters::FALCON_512_PARAMETER_SET);
+	for (const unsigned long parameterSet : allParameterSets)
+	{
+		FalconParameters* parameters = new FalconParameters();
+		parameters->setParameterSet(parameterSet);
 
-	AsymmetricKeyPair* keyPair = NULL;
-	CPPUNIT_ASSERT(falcon->generateKeyPair(&keyPair, parameters));
-	CPPUNIT_ASSERT(keyPair != NULL);
+		AsymmetricKeyPair* keyPair = NULL;
+		CPPUNIT_ASSERT(falcon->generateKeyPair(&keyPair, parameters));
+		CPPUNIT_ASSERT(keyPair != NULL);
 
-	ByteString serialisedPrivateKey = keyPair->getPrivateKey()->serialise();
-	PrivateKey* reconstructedPrivateKey = NULL;
-	CPPUNIT_ASSERT(falcon->reconstructPrivateKey(&reconstructedPrivateKey,
-		serialisedPrivateKey));
-	CPPUNIT_ASSERT(reconstructedPrivateKey != NULL);
-	CPPUNIT_ASSERT(serialisedPrivateKey.size() == 0);
+		ByteString serialisedPrivateKey = keyPair->getPrivateKey()->serialise();
+		PrivateKey* reconstructedPrivateKey = NULL;
+		CPPUNIT_ASSERT(falcon->reconstructPrivateKey(&reconstructedPrivateKey,
+			serialisedPrivateKey));
+		CPPUNIT_ASSERT(reconstructedPrivateKey != NULL);
+		CPPUNIT_ASSERT(serialisedPrivateKey.size() == 0);
 
-	ByteString dataToSign("fedcba9876543210");
-	ByteString signature;
-	CPPUNIT_ASSERT(falcon->sign(reconstructedPrivateKey, dataToSign,
-		signature, AsymMech::FALCON));
-	CPPUNIT_ASSERT(signature.size() > 0);
-	CPPUNIT_ASSERT(signature.size() <=
-		FalconParameters::FALCON_512_SIGNATURE_LENGTH);
-	CPPUNIT_ASSERT(verifyFalconSignature(
-		static_cast<FalconPublicKey*>(keyPair->getPublicKey()),
-		dataToSign, signature));
+		ByteString dataToSign("fedcba9876543210");
+		ByteString signature;
+		CPPUNIT_ASSERT(falcon->sign(reconstructedPrivateKey, dataToSign,
+			signature, AsymMech::FALCON));
+		CPPUNIT_ASSERT(signature.size() > 0);
+		CPPUNIT_ASSERT(signature.size() <=
+			keyPair->getPrivateKey()->getOutputLength());
+		CPPUNIT_ASSERT(verifyFalconSignature(
+			static_cast<FalconPublicKey*>(keyPair->getPublicKey()),
+			dataToSign, signature));
 
-	falcon->recyclePrivateKey(reconstructedPrivateKey);
-	falcon->recycleKeyPair(keyPair);
-	falcon->recycleParameters(parameters);
+		ByteString privateOnly =
+			static_cast<FalconPrivateKey*>(keyPair->getPrivateKey())->getValue().serialise();
+		PrivateKey* privateOnlyKey = NULL;
+		CPPUNIT_ASSERT(falcon->reconstructPrivateKey(&privateOnlyKey, privateOnly));
+		CPPUNIT_ASSERT(falcon->sign(privateOnlyKey, dataToSign, signature,
+			AsymMech::FALCON));
+		CPPUNIT_ASSERT(falcon->verify(keyPair->getPublicKey(), dataToSign,
+			signature, AsymMech::FALCON));
+		falcon->recyclePrivateKey(privateOnlyKey);
+
+		falcon->recyclePrivateKey(reconstructedPrivateKey);
+		falcon->recycleKeyPair(keyPair);
+		falcon->recycleParameters(parameters);
+	}
 }
 
 void FalconTests::testVerification()
 {
-	FalconParameters* parameters = new FalconParameters();
-	parameters->setParameterSet(FalconParameters::FALCON_512_PARAMETER_SET);
+	for (const unsigned long parameterSet : allParameterSets)
+	{
+		FalconParameters* parameters = new FalconParameters();
+		parameters->setParameterSet(parameterSet);
 
-	AsymmetricKeyPair* keyPair = NULL;
-	CPPUNIT_ASSERT(falcon->generateKeyPair(&keyPair, parameters));
-	CPPUNIT_ASSERT(keyPair != NULL);
+		AsymmetricKeyPair* keyPair = NULL;
+		CPPUNIT_ASSERT(falcon->generateKeyPair(&keyPair, parameters));
+		CPPUNIT_ASSERT(keyPair != NULL);
 
-	ByteString data("0123456789abcdef");
-	ByteString signature;
-	CPPUNIT_ASSERT(falcon->sign(keyPair->getPrivateKey(), data, signature,
-		AsymMech::FALCON));
-	CPPUNIT_ASSERT(falcon->verify(keyPair->getPublicKey(), data, signature,
-		AsymMech::FALCON));
+		ByteString data("0123456789abcdef");
+		ByteString signature;
+		CPPUNIT_ASSERT(falcon->sign(keyPair->getPrivateKey(), data, signature,
+			AsymMech::FALCON));
+		CPPUNIT_ASSERT(falcon->verify(keyPair->getPublicKey(), data, signature,
+			AsymMech::FALCON));
 
-	ByteString alteredData(data);
-	alteredData[0] ^= 1;
-	CPPUNIT_ASSERT(!falcon->verify(keyPair->getPublicKey(), alteredData,
-		signature, AsymMech::FALCON));
+		ByteString alteredData(data);
+		alteredData[0] ^= 1;
+		CPPUNIT_ASSERT(!falcon->verify(keyPair->getPublicKey(), alteredData,
+			signature, AsymMech::FALCON));
 
-	ByteString alteredSignature(signature);
-	alteredSignature[alteredSignature.size() - 1] ^= 1;
-	CPPUNIT_ASSERT(!falcon->verify(keyPair->getPublicKey(), data,
-		alteredSignature, AsymMech::FALCON));
+		ByteString alteredSignature(signature);
+		alteredSignature[alteredSignature.size() - 1] ^= 1;
+		CPPUNIT_ASSERT(!falcon->verify(keyPair->getPublicKey(), data,
+			alteredSignature, AsymMech::FALCON));
 
-	ByteString emptySignature;
-	CPPUNIT_ASSERT(!falcon->verify(keyPair->getPublicKey(), data,
-		emptySignature, AsymMech::FALCON));
-	ByteString oversizedSignature;
-	oversizedSignature.resize(
-		FalconParameters::FALCON_512_SIGNATURE_LENGTH + 1);
-	CPPUNIT_ASSERT(!falcon->verify(keyPair->getPublicKey(), data,
-		oversizedSignature, AsymMech::FALCON));
-	CPPUNIT_ASSERT(!falcon->verify(NULL, data, signature,
-		AsymMech::FALCON));
-	CPPUNIT_ASSERT(!falcon->verify(keyPair->getPublicKey(), data, signature,
-		AsymMech::Unknown));
+		ByteString emptySignature;
+		CPPUNIT_ASSERT(!falcon->verify(keyPair->getPublicKey(), data,
+			emptySignature, AsymMech::FALCON));
+		ByteString oversizedSignature;
+		oversizedSignature.resize(
+			keyPair->getPrivateKey()->getOutputLength() + 1);
+		CPPUNIT_ASSERT(!falcon->verify(keyPair->getPublicKey(), data,
+			oversizedSignature, AsymMech::FALCON));
+		CPPUNIT_ASSERT(!falcon->verify(NULL, data, signature,
+			AsymMech::FALCON));
+		CPPUNIT_ASSERT(!falcon->verify(keyPair->getPublicKey(), data, signature,
+			AsymMech::Unknown));
 
-	falcon->recycleKeyPair(keyPair);
-	falcon->recycleParameters(parameters);
+		falcon->recycleKeyPair(keyPair);
+		falcon->recycleParameters(parameters);
+	}
 }
 
 // Test vectors count 0 and 1 from falcon512-KAT.rsp in
