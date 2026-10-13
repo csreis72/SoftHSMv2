@@ -19,18 +19,10 @@ void OSSLXWingKeyPair::setPublicKey(OSSLXWingPublicKey& publicKey)
 	pubKey.setValue(publicKey.getValue());
 }
 
-// Set the private key and derive the public key
-bool OSSLXWingKeyPair::setPrivateKey(OSSLXWingPrivateKey& privateKey)
+// Set the private key
+void OSSLXWingKeyPair::setPrivateKey(OSSLXWingPrivateKey& privateKey)
 {
 	privKey.setValue(privateKey.getValue());
-	ByteString publicValue;
-	if (!privKey.getPublicValue(publicValue))
-	{
-		privKey.setValue(ByteString());
-		return false;
-	}
-	pubKey.setValue(publicValue);
-	return true;
 }
 
 // Return the public key

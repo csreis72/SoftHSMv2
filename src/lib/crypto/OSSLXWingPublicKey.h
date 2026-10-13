@@ -43,6 +43,9 @@ public:
 	// Set the X-Wing public key value
 	virtual void setValue(const ByteString& value);
 
+	// Set from the OpenSSL representations of the component keys
+	virtual void setFromOSSL(const EVP_PKEY* mlkemKey, const EVP_PKEY* x25519Key);
+
 	// Retrieve the OpenSSL representations of the component keys
 	EVP_PKEY* getOSSLMLKEMKey();
 	EVP_PKEY* getOSSLX25519Key();

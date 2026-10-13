@@ -305,6 +305,81 @@ void XWingTests::tearDown()
 	}
 }
 
+void XWingTests::testSerialisation()
+{
+	XWingParameters parameters;
+	ByteString serialisedParameters = parameters.serialise();
+	AsymmetricParameters* reconstructedParameters = NULL;
+	CPPUNIT_ASSERT(xWing->reconstructParameters(&reconstructedParameters, serialisedParameters));
+	CPPUNIT_ASSERT(reconstructedParameters->areOfType(XWingParameters::type));
+
+	AsymmetricKeyPair* keyPair = NULL;
+	CPPUNIT_ASSERT(xWing->generateKeyPair(&keyPair, reconstructedParameters));
+	ByteString trailingData("ABCD");
+	ByteString serialisedPair = keyPair->serialise() + trailingData;
+	AsymmetricKeyPair* reconstructedPair = NULL;
+	CPPUNIT_ASSERT(xWing->reconstructKeyPair(&reconstructedPair, serialisedPair));
+	CPPUNIT_ASSERT(serialisedPair == trailingData);
+	CPPUNIT_ASSERT(keyPair->serialise() == reconstructedPair->serialise());
+
+	ByteString serialisedPublic = keyPair->getPublicKey()->serialise() + trailingData;
+	PublicKey* reconstructedPublic = NULL;
+	CPPUNIT_ASSERT(xWing->reconstructPublicKey(&reconstructedPublic, serialisedPublic));
+	CPPUNIT_ASSERT(serialisedPublic == trailingData);
+	CPPUNIT_ASSERT(keyPair->getPublicKey()->serialise() == reconstructedPublic->serialise());
+
+	ByteString serialisedPrivate = keyPair->getPrivateKey()->serialise() + trailingData;
+	PrivateKey* reconstructedPrivate = NULL;
+	CPPUNIT_ASSERT(xWing->reconstructPrivateKey(&reconstructedPrivate, serialisedPrivate));
+	CPPUNIT_ASSERT(serialisedPrivate == trailingData);
+	CPPUNIT_ASSERT(keyPair->getPrivateKey()->serialise() == reconstructedPrivate->serialise());
+	CPPUNIT_ASSERT(reconstructedPrivate->PKCS8Encode().size() != 0);
+
+	ByteString cipherText;
+	SymmetricKey* encapsulatedKey = NULL;
+	SymmetricKey* decapsulatedKey = NULL;
+	CPPUNIT_ASSERT(xWing->encapsulate(reconstructedPublic, cipherText,
+		&encapsulatedKey, CKK_AES, AsymMech::XWING));
+	CPPUNIT_ASSERT(xWing->decapsulate(reconstructedPrivate, cipherText,
+		&decapsulatedKey, CKK_AES, AsymMech::XWING));
+	CPPUNIT_ASSERT(encapsulatedKey->getKeyBits() == decapsulatedKey->getKeyBits());
+
+	xWing->recycleSymmetricKey(encapsulatedKey);
+	xWing->recycleSymmetricKey(decapsulatedKey);
+	xWing->recyclePublicKey(reconstructedPublic);
+	xWing->recyclePrivateKey(reconstructedPrivate);
+	xWing->recycleKeyPair(reconstructedPair);
+	xWing->recycleKeyPair(keyPair);
+	xWing->recycleParameters(reconstructedParameters);
+}
+
+void XWingTests::testPKCS8()
+{
+	PrivateKey* privateKey = xWing->newPrivateKey();
+	static_cast<XWingPrivateKey*>(privateKey)->setValue(ByteString(testVectors[0].privateKey));
+	ByteString pkcs8 = privateKey->PKCS8Encode();
+	CPPUNIT_ASSERT(pkcs8.size() != 0);
+	PrivateKey* decodedPrivateKey = xWing->newPrivateKey();
+	CPPUNIT_ASSERT(decodedPrivateKey->PKCS8Decode(pkcs8));
+	CPPUNIT_ASSERT(privateKey->serialise() == decodedPrivateKey->serialise());
+	CPPUNIT_ASSERT(pkcs8 == decodedPrivateKey->PKCS8Encode());
+
+	// AES Key Wrap adds zero padding to a multiple of eight bytes.
+	ByteString paddedPKCS8 = pkcs8;
+	paddedPKCS8.resize((pkcs8.size() + 7) & ~size_t(7));
+	CPPUNIT_ASSERT(decodedPrivateKey->PKCS8Decode(paddedPKCS8));
+	CPPUNIT_ASSERT(privateKey->serialise() == decodedPrivateKey->serialise());
+
+	SymmetricKey* secretKey = NULL;
+	CPPUNIT_ASSERT(xWing->decapsulate(decodedPrivateKey,
+		ByteString(testVectors[0].cipherText), &secretKey, CKK_AES, AsymMech::XWING));
+	CPPUNIT_ASSERT(secretKey->getKeyBits() == ByteString(testVectors[0].sharedSecret));
+
+	xWing->recycleSymmetricKey(secretKey);
+	xWing->recyclePrivateKey(decodedPrivateKey);
+	xWing->recyclePrivateKey(privateKey);
+}
+
 void XWingTests::testEncapsulation()
 {
 	XWingParameters* parameters = new XWingParameters();

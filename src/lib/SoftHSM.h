@@ -55,6 +55,7 @@
 #include "GOSTPrivateKey.h"
 #ifdef WITH_X_WING
 #include "XWingPrivateKey.h"
+#include "XWingPublicKey.h"
 #endif
 
 #include <memory>
@@ -513,6 +514,7 @@ private:
 	CK_RV getSymmetricKey(SymmetricKey* skey, Token* token, OSObject* key);
 #ifdef WITH_X_WING
 	CK_RV getXWingPrivateKey(XWingPrivateKey* privateKey, Token* token, OSObject* key);
+	CK_RV getXWingPublicKey(XWingPublicKey* publicKey, Token* token, OSObject* key);
 #endif
 
 	ByteString getECDHPubData(ByteString& pubData);

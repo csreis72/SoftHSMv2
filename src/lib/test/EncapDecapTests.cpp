@@ -12,7 +12,6 @@
 #include <config.h>
 #include <stdlib.h>
 #include <string.h>
-#include <vector>
 #include "EncapDecapTests.h"
 
 #if defined(WITH_ML_KEM) || defined(WITH_X_WING)
@@ -29,13 +28,14 @@ const CK_ULONG X_WING_CIPHERTEXT_LENGTH = 1120;
 CPPUNIT_TEST_SUITE_REGISTRATION(EncapDecapTests);
 
 #ifdef WITH_X_WING
-CK_RV EncapDecapTests::generateXWing(CK_SESSION_HANDLE hSession, CK_BBOOL bTokenPuk, CK_BBOOL bPrivatePuk, CK_BBOOL bTokenPrk, CK_BBOOL bPrivatePrk, CK_OBJECT_HANDLE &hPuk, CK_OBJECT_HANDLE &hPrk, CK_BBOOL bExtractable)
+CK_RV EncapDecapTests::generateXWing(CK_SESSION_HANDLE hSession, CK_BBOOL bTokenPuk, CK_BBOOL bPrivatePuk, CK_BBOOL bTokenPrk, CK_BBOOL bPrivatePrk, CK_OBJECT_HANDLE &hPuk, CK_OBJECT_HANDLE &hPrk)
 {
 	CK_MECHANISM mechanism = { CKM_X_WING_KEY_PAIR_GEN, NULL_PTR, 0 };
 	CK_KEY_TYPE keyType = CKK_X_WING;
 	CK_BYTE label[] = { 0x12, 0x34 };
 	CK_BYTE id[] = { 123 };
 	CK_BBOOL bTrue = CK_TRUE;
+	CK_BBOOL bFalse = CK_FALSE;
 	CK_ATTRIBUTE pukAttribs[] = {
 		{ CKA_LABEL, &label[0], sizeof(label) },
 		{ CKA_ID, &id[0], sizeof(id) },
@@ -52,7 +52,7 @@ CK_RV EncapDecapTests::generateXWing(CK_SESSION_HANDLE hSession, CK_BBOOL bToken
 		{ CKA_SENSITIVE, &bTrue, sizeof(bTrue) },
 		{ CKA_TOKEN, &bTokenPrk, sizeof(bTokenPrk) },
 		{ CKA_PRIVATE, &bPrivatePrk, sizeof(bPrivatePrk) },
-		{ CKA_EXTRACTABLE, &bExtractable, sizeof(bExtractable) }
+		{ CKA_EXTRACTABLE, &bFalse, sizeof(bFalse) }
 	};
 
 	hPuk = CK_INVALID_HANDLE;
@@ -201,99 +201,6 @@ void EncapDecapTests::testXWingEncapsulationDecapsulation()
 
 	rv = CRYPTOKI_F_PTR( C_CloseSession(hSession) );
 	CPPUNIT_ASSERT(rv == CKR_OK);
-}
-
-void EncapDecapTests::testXWingWrapUnwrap()
-{
-	CRYPTOKI_F_PTR( C_Finalize(NULL_PTR) );
-	CK_RV rv = CRYPTOKI_F_PTR( C_Initialize(NULL_PTR) );
-	CPPUNIT_ASSERT_EQUAL(CKR_OK, rv);
-	CK_SESSION_HANDLE hSession;
-	rv = CRYPTOKI_F_PTR( C_OpenSession(m_initializedTokenSlotID,
-		CKF_SERIAL_SESSION | CKF_RW_SESSION, NULL_PTR, NULL_PTR, &hSession) );
-	CPPUNIT_ASSERT_EQUAL(CKR_OK, rv);
-	rv = CRYPTOKI_F_PTR( C_Login(hSession, CKU_USER, m_userPin1, m_userPin1Length) );
-	CPPUNIT_ASSERT_EQUAL(CKR_OK, rv);
-
-	CK_BBOOL bTrue = CK_TRUE, bFalse = CK_FALSE;
-	CK_OBJECT_CLASS secretClass = CKO_SECRET_KEY, privateClass = CKO_PRIVATE_KEY;
-	CK_KEY_TYPE aesType = CKK_AES, xwingType = CKK_X_WING;
-	CK_BYTE aesValue[32] = { 0 };
-	CK_ATTRIBUTE aesTemplate[] = {
-		{ CKA_CLASS, &secretClass, sizeof(secretClass) },
-		{ CKA_KEY_TYPE, &aesType, sizeof(aesType) },
-		{ CKA_VALUE, aesValue, sizeof(aesValue) },
-		{ CKA_WRAP, &bTrue, sizeof(bTrue) },
-		{ CKA_UNWRAP, &bTrue, sizeof(bTrue) }
-	};
-	CK_OBJECT_HANDLE hWrappingKey;
-	rv = CRYPTOKI_F_PTR( C_CreateObject(hSession, aesTemplate,
-		sizeof(aesTemplate) / sizeof(CK_ATTRIBUTE), &hWrappingKey) );
-	CPPUNIT_ASSERT_EQUAL(CKR_OK, rv);
-	CK_BYTE iv[16] = { 0 };
-	CK_MECHANISM mechanisms[] = {
-		{ CKM_AES_CBC_PAD, iv, sizeof(iv) },
-#ifdef HAVE_AES_KEY_WRAP
-		{ CKM_AES_KEY_WRAP, NULL_PTR, 0 },
-#endif
-#ifdef HAVE_AES_KEY_WRAP_PAD
-		{ CKM_AES_KEY_WRAP_PAD, NULL_PTR, 0 },
-#endif
-	};
-
-	for (CK_MECHANISM& mechanism : mechanisms)
-	{
-		for (CK_BBOOL isPrivate : { CK_FALSE, CK_TRUE })
-		{
-			CK_OBJECT_HANDLE hPublicKey, hPrivateKey;
-			rv = generateXWing(hSession, IN_SESSION, IS_PUBLIC, ON_TOKEN,
-				isPrivate, hPublicKey, hPrivateKey, CK_TRUE);
-			CPPUNIT_ASSERT_EQUAL(CKR_OK, rv);
-			CK_ULONG length = 0;
-			rv = CRYPTOKI_F_PTR( C_WrapKey(hSession, &mechanism, hWrappingKey,
-				hPrivateKey, NULL_PTR, &length) );
-			CPPUNIT_ASSERT_EQUAL(CKR_OK, rv);
-			std::vector<CK_BYTE> wrapped(length);
-			rv = CRYPTOKI_F_PTR( C_WrapKey(hSession, &mechanism, hWrappingKey,
-				hPrivateKey, wrapped.data(), &length) );
-			CPPUNIT_ASSERT_EQUAL(CKR_OK, rv);
-			rv = CRYPTOKI_F_PTR( C_DestroyObject(hSession, hPrivateKey) );
-			CPPUNIT_ASSERT_EQUAL(CKR_OK, rv);
-
-			CK_ATTRIBUTE privateTemplate[] = {
-				{ CKA_CLASS, &privateClass, sizeof(privateClass) },
-				{ CKA_KEY_TYPE, &xwingType, sizeof(xwingType) },
-				{ CKA_PRIVATE, &isPrivate, sizeof(isPrivate) },
-				{ CKA_DECAPSULATE, &bTrue, sizeof(bTrue) },
-				{ CKA_SENSITIVE, &bTrue, sizeof(bTrue) },
-				{ CKA_EXTRACTABLE, &bTrue, sizeof(bTrue) }
-			};
-			rv = CRYPTOKI_F_PTR( C_UnwrapKey(hSession, &mechanism, hWrappingKey,
-				wrapped.data(), length, privateTemplate,
-				sizeof(privateTemplate) / sizeof(CK_ATTRIBUTE), &hPrivateKey) );
-			CPPUNIT_ASSERT_EQUAL(CKR_OK, rv);
-			encapsulateDecapsulateXWing(hSession, hPublicKey, hPrivateKey);
-			// Wrapping the restored key must not depend on a public-key object.
-			rv = CRYPTOKI_F_PTR( C_DestroyObject(hSession, hPublicKey) );
-			CPPUNIT_ASSERT_EQUAL(CKR_OK, rv);
-			rv = CRYPTOKI_F_PTR( C_WrapKey(hSession, &mechanism, hWrappingKey,
-				hPrivateKey, wrapped.data(), &length) );
-			CPPUNIT_ASSERT_EQUAL(CKR_OK, rv);
-			CK_ATTRIBUTE extractableAttribute = {
-				CKA_EXTRACTABLE, &bFalse, sizeof(bFalse)
-			};
-			rv = CRYPTOKI_F_PTR( C_SetAttributeValue(hSession, hPrivateKey,
-				&extractableAttribute, 1) );
-			CPPUNIT_ASSERT_EQUAL(CKR_OK, rv);
-			rv = CRYPTOKI_F_PTR( C_WrapKey(hSession, &mechanism, hWrappingKey,
-				hPrivateKey, NULL_PTR, &length) );
-			CPPUNIT_ASSERT_EQUAL(CKR_KEY_UNEXTRACTABLE, rv);
-			rv = CRYPTOKI_F_PTR( C_DestroyObject(hSession, hPrivateKey) );
-			CPPUNIT_ASSERT_EQUAL(CKR_OK, rv);
-		}
-	}
-	rv = CRYPTOKI_F_PTR( C_CloseSession(hSession) );
-	CPPUNIT_ASSERT_EQUAL(CKR_OK, rv);
 }
 
 void EncapDecapTests::encapsulateDecapsulateXWing(

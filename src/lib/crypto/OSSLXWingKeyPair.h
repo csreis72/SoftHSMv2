@@ -24,8 +24,8 @@ public:
 	// Set the public key
 	void setPublicKey(OSSLXWingPublicKey& publicKey);
 
-	// Set the private key and derive the public key
-	bool setPrivateKey(OSSLXWingPrivateKey& privateKey);
+	// Set the private key
+	void setPrivateKey(OSSLXWingPrivateKey& privateKey);
 
 	// Return the public key
 	virtual PublicKey* getPublicKey();

@@ -49,9 +49,6 @@ public:
 	// Decode from PKCS#8 BER
 	virtual bool PKCS8Decode(const ByteString& ber);
 
-	// Retrieve the X-Wing public key value
-	bool getPublicValue(ByteString& publicValue);
-
 	// Retrieve the OpenSSL representations of the component keys
 	EVP_PKEY* getOSSLMLKEMKey();
 	EVP_PKEY* getOSSLX25519Key();
@@ -61,13 +58,10 @@ private:
 	EVP_PKEY* mlkemPkey;
 	EVP_PKEY* x25519Pkey;
 
-	// The derived public key value
-	ByteString publicValue;
-
 	// Create the OpenSSL representations from the private key value
 	void createOSSLKeys();
 
-	// Release the OpenSSL representations and derived public key value
+	// Release the OpenSSL representations
 	void resetOSSLKeys();
 };
 

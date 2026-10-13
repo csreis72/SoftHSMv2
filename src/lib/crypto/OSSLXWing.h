@@ -71,15 +71,14 @@ private:
 	bool encapsulateMLKEM(EVP_PKEY* mlkemPkey, ByteString& cipherText,
 	                     ByteString& sharedSecret, const ByteString& seed);
 	bool encapsulateX25519(EVP_PKEY* x25519Pkey, ByteString& cipherText,
-	                      ByteString& sharedSecret, RNG* rng,
-	                      const ByteString& seed);
+	                      ByteString& sharedSecret, const ByteString& seed);
 	bool encapsulateComponents(EVP_PKEY* mlkemPkey,
 	                           EVP_PKEY* x25519Pkey,
 	                           ByteString& mlkemCipherText,
 	                           ByteString& mlkemSharedSecret,
 	                           ByteString& x25519CipherText,
 	                           ByteString& x25519SharedSecret,
-	                           const ByteString& seed, RNG* rng = NULL);
+	                           const ByteString& seed);
 	bool decapsulateMLKEM(EVP_PKEY* mlkemPkey,
 	                     const ByteString& cipherText,
 	                     ByteString& sharedSecret);

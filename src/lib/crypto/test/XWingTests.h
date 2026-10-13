@@ -18,6 +18,8 @@
 class XWingTests : public CppUnit::TestFixture
 {
 	CPPUNIT_TEST_SUITE(XWingTests);
+	CPPUNIT_TEST(testSerialisation);
+	CPPUNIT_TEST(testPKCS8);
 	CPPUNIT_TEST(testEncapsulation);
 	CPPUNIT_TEST(testEncapsulationDecapsulation);
 	CPPUNIT_TEST(testEncapsulationInvalidInputs);
@@ -28,6 +30,8 @@ class XWingTests : public CppUnit::TestFixture
 
 public:
 	XWingTests() : xWing(NULL) {}
+	void testSerialisation();
+	void testPKCS8();
 	void testEncapsulation();
 	void testEncapsulationDecapsulation();
 	void testEncapsulationInvalidInputs();

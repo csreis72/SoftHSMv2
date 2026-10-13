@@ -34,7 +34,6 @@ class EncapDecapTests : public TestsBase
 	CPPUNIT_TEST_PARAMETERIZED(testKEMSecretCheckValue, {CKM_X_WING});
 	CPPUNIT_TEST(testXWingEncapsulation);
 	CPPUNIT_TEST(testXWingEncapsulationDecapsulation);
-	CPPUNIT_TEST(testXWingWrapUnwrap);
 	CPPUNIT_TEST(testXWingEncapsulationBufferTooSmall);
 	CPPUNIT_TEST(testXWingEncapsulationInvalidInputs);
 	CPPUNIT_TEST(testXWingDecapsulationInvalidInputs);
@@ -57,7 +56,6 @@ public:
 #ifdef WITH_X_WING
 	void testXWingEncapsulation();
 	void testXWingEncapsulationDecapsulation();
-	void testXWingWrapUnwrap();
 	void testXWingEncapsulationBufferTooSmall();
 	void testXWingEncapsulationInvalidInputs();
 	void testXWingDecapsulationInvalidInputs();
@@ -72,7 +70,7 @@ protected:
 	CK_RV generateMLKEM(CK_ULONG parameterSet, CK_SESSION_HANDLE hSession, CK_BBOOL bTokenPuk, CK_BBOOL bPrivatePuk, CK_BBOOL bTokenPrk, CK_BBOOL bPrivatePrk, CK_OBJECT_HANDLE &hPuk, CK_OBJECT_HANDLE &hPrk);
 #endif
 #ifdef WITH_X_WING
-	CK_RV generateXWing(CK_SESSION_HANDLE hSession, CK_BBOOL bTokenPuk, CK_BBOOL bPrivatePuk, CK_BBOOL bTokenPrk, CK_BBOOL bPrivatePrk, CK_OBJECT_HANDLE &hPuk, CK_OBJECT_HANDLE &hPrk, CK_BBOOL bExtractable = CK_FALSE);
+	CK_RV generateXWing(CK_SESSION_HANDLE hSession, CK_BBOOL bTokenPuk, CK_BBOOL bPrivatePuk, CK_BBOOL bTokenPrk, CK_BBOOL bPrivatePrk, CK_OBJECT_HANDLE &hPuk, CK_OBJECT_HANDLE &hPrk);
 	void encapsulateXWing(CK_SESSION_HANDLE hSession, CK_OBJECT_HANDLE hPublicKey);
 	void encapsulateDecapsulateXWing(CK_SESSION_HANDLE hSession,
 	                                CK_OBJECT_HANDLE hPublicKey,

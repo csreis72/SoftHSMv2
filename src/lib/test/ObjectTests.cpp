@@ -703,28 +703,30 @@ CK_RV ObjectTests::generateRsaKeyPair(CK_SESSION_HANDLE hSession, CK_BBOOL bToke
 }
 
 #ifdef WITH_X_WING
-CK_RV ObjectTests::generateXWingKeyPair(CK_SESSION_HANDLE hSession, CK_BBOOL bToken, const char* label, CK_BYTE id, CK_OBJECT_HANDLE &hPuk, CK_OBJECT_HANDLE &hPrk)
+CK_RV ObjectTests::generateXWingKeyPair(CK_SESSION_HANDLE hSession, CK_BBOOL bTokenPuk, CK_BBOOL bPrivatePuk, CK_BBOOL bTokenPrk, CK_BBOOL bPrivatePrk, CK_OBJECT_HANDLE &hPuk, CK_OBJECT_HANDLE &hPrk)
 {
 	CK_MECHANISM mechanism = { CKM_X_WING_KEY_PAIR_GEN, NULL_PTR, 0 };
 	CK_KEY_TYPE keyType = CKK_X_WING;
+	CK_BYTE label[] = "x-wing-test";
+	CK_BYTE id[] = { 123 };
 	CK_BBOOL bFalse = CK_FALSE;
 	CK_BBOOL bTrue = CK_TRUE;
 	CK_ATTRIBUTE pukAttribs[] = {
-		{ CKA_LABEL, (CK_VOID_PTR)label, strlen(label) },
-		{ CKA_ID, &id, sizeof(id) },
+		{ CKA_LABEL, label, sizeof(label) - 1 },
+		{ CKA_ID, id, sizeof(id) },
 		{ CKA_KEY_TYPE, &keyType, sizeof(keyType) },
 		{ CKA_ENCAPSULATE, &bTrue, sizeof(bTrue) },
-		{ CKA_TOKEN, &bToken, sizeof(bToken) },
-		{ CKA_PRIVATE, &bFalse, sizeof(bFalse) }
+		{ CKA_TOKEN, &bTokenPuk, sizeof(bTokenPuk) },
+		{ CKA_PRIVATE, &bPrivatePuk, sizeof(bPrivatePuk) }
 	};
 	CK_ATTRIBUTE prkAttribs[] = {
-		{ CKA_LABEL, (CK_VOID_PTR)label, strlen(label) },
-		{ CKA_ID, &id, sizeof(id) },
+		{ CKA_LABEL, label, sizeof(label) - 1 },
+		{ CKA_ID, id, sizeof(id) },
 		{ CKA_KEY_TYPE, &keyType, sizeof(keyType) },
 		{ CKA_DECAPSULATE, &bTrue, sizeof(bTrue) },
 		{ CKA_SENSITIVE, &bTrue, sizeof(bTrue) },
-		{ CKA_TOKEN, &bToken, sizeof(bToken) },
-		{ CKA_PRIVATE, &bTrue, sizeof(bTrue) },
+		{ CKA_TOKEN, &bTokenPrk, sizeof(bTokenPrk) },
+		{ CKA_PRIVATE, &bPrivatePrk, sizeof(bPrivatePrk) },
 		{ CKA_EXTRACTABLE, &bFalse, sizeof(bFalse) }
 	};
 
@@ -1652,7 +1654,7 @@ void ObjectTests::testXWingKeyGeneration()
 	CPPUNIT_ASSERT_EQUAL(CKR_OK, rv);
 	CPPUNIT_ASSERT_EQUAL(CKR_OK, CRYPTOKI_F_PTR( C_Login(hSession, CKU_USER, m_userPin1, m_userPin1Length) ));
 
-	rv = generateXWingKeyPair(hSession, IN_SESSION, "x-wing-session", 1, hPuk, hPrk);
+	rv = generateXWingKeyPair(hSession, IN_SESSION, IS_PUBLIC, IN_SESSION, IS_PRIVATE, hPuk, hPrk);
 	CPPUNIT_ASSERT_EQUAL(CKR_OK, rv);
 	CPPUNIT_ASSERT(hPuk != CK_INVALID_HANDLE);
 	CPPUNIT_ASSERT(hPrk != CK_INVALID_HANDLE);
@@ -1727,14 +1729,14 @@ void ObjectTests::testXWingTokenPersistence()
 	CK_SESSION_HANDLE hSession;
 	CK_OBJECT_HANDLE hPuk;
 	CK_OBJECT_HANDLE hPrk;
-	const char* label = "x-wing-persistent";
+	const char* label = "x-wing-test";
 
 	CRYPTOKI_F_PTR( C_Finalize(NULL_PTR) );
 	CPPUNIT_ASSERT_EQUAL(CKR_OK, CRYPTOKI_F_PTR( C_Initialize(NULL_PTR) ));
 	rv = CRYPTOKI_F_PTR( C_OpenSession(m_initializedTokenSlotID, CKF_SERIAL_SESSION | CKF_RW_SESSION, NULL_PTR, NULL_PTR, &hSession) );
 	CPPUNIT_ASSERT_EQUAL(CKR_OK, rv);
 	CPPUNIT_ASSERT_EQUAL(CKR_OK, CRYPTOKI_F_PTR( C_Login(hSession, CKU_USER, m_userPin1, m_userPin1Length) ));
-	rv = generateXWingKeyPair(hSession, ON_TOKEN, label, 2, hPuk, hPrk);
+	rv = generateXWingKeyPair(hSession, ON_TOKEN, IS_PUBLIC, ON_TOKEN, IS_PRIVATE, hPuk, hPrk);
 	CPPUNIT_ASSERT_EQUAL(CKR_OK, rv);
 	CPPUNIT_ASSERT_EQUAL(CKR_OK, CRYPTOKI_F_PTR( C_CloseSession(hSession) ));
 	CPPUNIT_ASSERT_EQUAL(CKR_OK, CRYPTOKI_F_PTR( C_Finalize(NULL_PTR) ));

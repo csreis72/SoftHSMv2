@@ -8537,29 +8537,12 @@ CK_RV SoftHSM::C_EncapsulateKey
 	}
 #endif
 #ifdef WITH_X_WING
-	if (algo == AsymAlgo::XWING)
+	if (algo == AsymAlgo::XWING &&
+		getXWingPublicKey((XWingPublicKey*)publicKey, token, encapsulationKey) != CKR_OK)
 	{
-		ByteString value = encapsulationKey->getByteStringValue(CKA_VALUE);
-		if (isEncapsulationKeyPrivate)
-		{
-			ByteString decryptedValue;
-			if (!token->decrypt(value, decryptedValue))
-			{
-				cipher->recyclePublicKey(publicKey);
-				CryptoFactory::i()->recycleAsymmetricAlgorithm(cipher);
-				return CKR_GENERAL_ERROR;
-			}
-			else
-				value = decryptedValue;
-		}
-
-		if (value.size() != XWingParameters::X_WING_PUB_LENGTH)
-		{
-			cipher->recyclePublicKey(publicKey);
-			CryptoFactory::i()->recycleAsymmetricAlgorithm(cipher);
-			return CKR_GENERAL_ERROR;
-		}
-		((XWingPublicKey*)publicKey)->setValue(value);
+		cipher->recyclePublicKey(publicKey);
+		CryptoFactory::i()->recycleAsymmetricAlgorithm(cipher);
+		return CKR_GENERAL_ERROR;
 	}
 #endif
 
@@ -11580,7 +11563,7 @@ CK_RV SoftHSM::generateXWing
 
 				ByteString value;
 				if (isPublicKeyPrivate)
-					token->encrypt(publicKey->getValue(), value);
+					bOK = bOK && token->encrypt(publicKey->getValue(), value);
 				else
 					value = publicKey->getValue();
 				bOK = bOK && osobject->setAttribute(CKA_VALUE, value);
@@ -11662,7 +11645,7 @@ CK_RV SoftHSM::generateXWing
 
 				ByteString value;
 				if (isPrivateKeyPrivate)
-					token->encrypt(privateKey->getValue(), value);
+					bOK = bOK && token->encrypt(privateKey->getValue(), value);
 				else
 					value = privateKey->getValue();
 				bOK = bOK && osobject->setAttribute(CKA_VALUE, value);
@@ -14921,6 +14904,28 @@ CK_RV SoftHSM::getXWingPrivateKey(XWingPrivateKey* privateKey, Token* token, OSO
 		return CKR_GENERAL_ERROR;
 
 	privateKey->setValue(value);
+	value.wipe();
+	return CKR_OK;
+}
+
+CK_RV SoftHSM::getXWingPublicKey(XWingPublicKey* publicKey, Token* token, OSObject* key)
+{
+	if (publicKey == NULL) return CKR_ARGUMENTS_BAD;
+	if (token == NULL) return CKR_ARGUMENTS_BAD;
+	if (key == NULL) return CKR_ARGUMENTS_BAD;
+
+	ByteString value;
+	if (key->getBooleanValue(CKA_PRIVATE, false))
+	{
+		if (!token->decrypt(key->getByteStringValue(CKA_VALUE), value))
+			return CKR_GENERAL_ERROR;
+	}
+	else
+		value = key->getByteStringValue(CKA_VALUE);
+	if (value.size() != XWingParameters::X_WING_PUB_LENGTH)
+		return CKR_GENERAL_ERROR;
+
+	publicKey->setValue(value);
 	value.wipe();
 	return CKR_OK;
 }

@@ -41,6 +41,7 @@
 #include "OSSLComp.h"
 #ifdef WITH_X_WING
 #include "OSSLXWingPrivateKey.h"
+#include "OSSLXWingPublicKey.h"
 #include "XWingParameters.h"
 #endif
 
@@ -1670,8 +1671,8 @@ int crypto_save_xwing(CK_SESSION_HANDLE hSession, char* label, char* objID,
 	size_t objIDLen, int noPublicKey, PKCS8_PRIV_KEY_INFO* keyInfo)
 {
 	ByteString der;
-	ByteString publicValue;
 	OSSLXWingPrivateKey privateKey;
+	OSSLXWingPublicKey publicKey;
 	const int length = i2d_PKCS8_PRIV_KEY_INFO(keyInfo, NULL);
 	if (length > 0)
 	{
@@ -1679,13 +1680,17 @@ int crypto_save_xwing(CK_SESSION_HANDLE hSession, char* label, char* objID,
 		unsigned char* output = der.byte_str();
 		if (i2d_PKCS8_PRIV_KEY_INFO(keyInfo, &output) != length) der.wipe();
 	}
-	if (!privateKey.PKCS8Decode(der) || !privateKey.getPublicValue(publicValue))
+	if (privateKey.PKCS8Decode(der))
+		publicKey.setFromOSSL(privateKey.getOSSLMLKEMKey(),
+			privateKey.getOSSLX25519Key());
+	if (publicKey.getValue().size() == 0)
 	{
 		fprintf(stderr, "ERROR: Could not convert the X-Wing key material to binary information.\n");
 		return 1;
 	}
 
 	ByteString privateValue = privateKey.getValue();
+	ByteString publicValue = publicKey.getValue();
 	CK_OBJECT_CLASS pubClass = CKO_PUBLIC_KEY, privClass = CKO_PRIVATE_KEY;
 	CK_KEY_TYPE keyType = CKK_X_WING;
 	CK_BBOOL ckTrue = CK_TRUE, ckFalse = CK_FALSE;

@@ -126,6 +126,27 @@ void OSSLXWingPublicKey::setValue(const ByteString& inValue)
 	resetOSSLKeys();
 }
 
+void OSSLXWingPublicKey::setFromOSSL(const EVP_PKEY* mlkemKey,
+	const EVP_PKEY* x25519Key)
+{
+	unsigned char mlkemPub[XWingParameters::ML_KEM_768_PUB_LENGTH];
+	unsigned char x25519Pub[XWingParameters::X25519_PUB_LENGTH];
+	size_t mlkemPubLen = sizeof(mlkemPub);
+	size_t x25519PubLen = sizeof(x25519Pub);
+	if (mlkemKey == NULL || x25519Key == NULL ||
+		EVP_PKEY_get_octet_string_param(mlkemKey, OSSL_PKEY_PARAM_PUB_KEY,
+			mlkemPub, sizeof(mlkemPub), &mlkemPubLen) <= 0 ||
+		mlkemPubLen != sizeof(mlkemPub) ||
+		EVP_PKEY_get_raw_public_key(x25519Key, x25519Pub, &x25519PubLen) <= 0 ||
+		x25519PubLen != sizeof(x25519Pub))
+	{
+		ERROR_MSG("Could not get X-Wing public key components");
+		return;
+	}
+	setValue(ByteString(mlkemPub, mlkemPubLen) +
+		ByteString(x25519Pub, x25519PubLen));
+}
+
 void OSSLXWingPublicKey::createOSSLKeys()
 {
 	if (mlkemPkey != NULL && x25519Pkey != NULL) return;

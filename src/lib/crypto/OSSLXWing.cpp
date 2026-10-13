@@ -69,8 +69,7 @@ bool OSSLXWing::encapsulateMLKEM(EVP_PKEY* mlkemPkey,
 }
 
 bool OSSLXWing::encapsulateX25519(EVP_PKEY* x25519Pkey,
-	ByteString& cipherText, ByteString& sharedSecret, RNG* rng,
-	const ByteString& seed)
+	ByteString& cipherText, ByteString& sharedSecret, const ByteString& seed)
 {
 	ByteString ephemeralPrivateKey = seed;
 	EVP_PKEY* ephemeralPkey = NULL;
@@ -83,6 +82,7 @@ bool OSSLXWing::encapsulateX25519(EVP_PKEY* x25519Pkey,
 	bool rv = seed.size() == XWingParameters::X25519_PRIV_LENGTH;
 	if (seed.size() == 0)
 	{
+		RNG* rng = CryptoFactory::i()->getRNG();
 		rv = rng != NULL &&
 			rng->generateRandom(ephemeralPrivateKey,
 			                    XWingParameters::X25519_PRIV_LENGTH);
@@ -135,18 +135,17 @@ bool OSSLXWing::encapsulateX25519(EVP_PKEY* x25519Pkey,
 bool OSSLXWing::encapsulateComponents(EVP_PKEY* mlkemPkey,
 	EVP_PKEY* x25519Pkey, ByteString& mlkemCipherText,
 	ByteString& mlkemSharedSecret, ByteString& x25519CipherText,
-	ByteString& x25519SharedSecret, const ByteString& seed, RNG* rng)
+	ByteString& x25519SharedSecret, const ByteString& seed)
 {
 	mlkemCipherText.wipe();
 	mlkemSharedSecret.wipe();
 	x25519CipherText.wipe();
 	x25519SharedSecret.wipe();
 	if (mlkemPkey == NULL || x25519Pkey == NULL) return false;
-	if (rng == NULL) rng = CryptoFactory::i()->getRNG();
 
 	const size_t seedLen = XWingParameters::X_WING_ENCAPSULATION_SEED_LENGTH / 2;
 	if (encapsulateX25519(x25519Pkey, x25519CipherText,
-	                    x25519SharedSecret, rng, seed.substr(seedLen)) &&
+	                    x25519SharedSecret, seed.substr(seedLen)) &&
 		encapsulateMLKEM(mlkemPkey, mlkemCipherText,
 		                 mlkemSharedSecret, seed.substr(0, seedLen)))
 	{
@@ -248,16 +247,6 @@ bool OSSLXWing::combineSharedSecrets(const ByteString& mlkemSharedSecret,
 	const ByteString& x25519PublicKey, ByteString& sharedSecret)
 {
 	sharedSecret.wipe();
-	if (mlkemSharedSecret.size() !=
-			XWingParameters::X_WING_SHARED_SECRET_LENGTH ||
-		x25519SharedSecret.size() !=
-			XWingParameters::X_WING_SHARED_SECRET_LENGTH ||
-		x25519CipherText.size() != XWingParameters::X25519_PUB_LENGTH ||
-		x25519PublicKey.size() != XWingParameters::X25519_PUB_LENGTH)
-	{
-		return false;
-	}
-
 	EVP_MD* sha3 = EVP_MD_fetch(NULL, "SHA3-256", NULL);
 	EVP_MD_CTX* ctx = EVP_MD_CTX_new();
 	unsigned int sharedSecretLen = 0;
@@ -345,10 +334,7 @@ bool OSSLXWing::encapsulate(PublicKey* publicKey, ByteString& cipherText,
 		                     sharedSecret);
 
 	if (rv)
-	{
 		cipherText = mlkemCipherText + x25519CipherText;
-		rv = cipherText.size() == XWingParameters::X_WING_CIPHERTEXT_LENGTH;
-	}
 
 	SymmetricKey* outputKey = NULL;
 	if (rv)
@@ -404,21 +390,25 @@ bool OSSLXWing::decapsulate(PrivateKey* privateKey,
 		static_cast<OSSLXWingPrivateKey*>(privateKey);
 	EVP_PKEY* mlkemPkey = xwingPrivateKey->getOSSLMLKEMKey();
 	EVP_PKEY* x25519Pkey = xwingPrivateKey->getOSSLX25519Key();
-	ByteString publicValue;
-	if (mlkemPkey == NULL || x25519Pkey == NULL ||
-		!xwingPrivateKey->getPublicValue(publicValue))
+	if (mlkemPkey == NULL || x25519Pkey == NULL)
 	{
 		ERROR_MSG("Could not get the OpenSSL X-Wing private key components");
 		return false;
 	}
 
+	ByteString x25519PublicKey;
+	x25519PublicKey.resize(XWingParameters::X25519_PUB_LENGTH);
+	size_t publicKeyLength = x25519PublicKey.size();
+	if (EVP_PKEY_get_raw_public_key(x25519Pkey, x25519PublicKey.byte_str(),
+		&publicKeyLength) <= 0 || publicKeyLength != x25519PublicKey.size())
+	{
+		ERROR_MSG("Could not get the X25519 public key for X-Wing decapsulation");
+		return false;
+	}
 	const ByteString mlkemCipherText = cipherText.substr(
 		0, XWingParameters::ML_KEM_768_CIPHERTEXT_LENGTH);
 	const ByteString x25519CipherText = cipherText.substr(
 		XWingParameters::ML_KEM_768_CIPHERTEXT_LENGTH,
-		XWingParameters::X25519_PUB_LENGTH);
-	const ByteString x25519PublicKey = publicValue.substr(
-		XWingParameters::ML_KEM_768_PUB_LENGTH,
 		XWingParameters::X25519_PUB_LENGTH);
 	ByteString mlkemSharedSecret;
 	ByteString x25519SharedSecret;
@@ -487,12 +477,16 @@ bool OSSLXWing::generateKeyPair(AsymmetricKeyPair** ppKeyPair,
 	if (!rng->generateRandom(seed, XWingParameters::X_WING_PRIV_LENGTH))
 		return false;
 
-	OSSLXWingPrivateKey privateKey;
-	privateKey.setValue(seed);
 	OSSLXWingKeyPair* kp = new OSSLXWingKeyPair();
-	const bool rv = kp->setPrivateKey(privateKey);
+	OSSLXWingPrivateKey* privateKey =
+		static_cast<OSSLXWingPrivateKey*>(kp->getPrivateKey());
+	privateKey->setValue(seed);
+	OSSLXWingPublicKey* publicKey =
+		static_cast<OSSLXWingPublicKey*>(kp->getPublicKey());
+	publicKey->setFromOSSL(privateKey->getOSSLMLKEMKey(),
+		privateKey->getOSSLX25519Key());
 	seed.wipe();
-	if (!rv)
+	if (publicKey->getValue().size() == 0)
 	{
 		delete kp;
 		return false;
@@ -519,18 +513,9 @@ bool OSSLXWing::reconstructKeyPair(AsymmetricKeyPair** ppKeyPair,
 
 	ByteString dPub = ByteString::chainDeserialise(serialisedData);
 	ByteString dPriv = ByteString::chainDeserialise(serialisedData);
-	OSSLXWingPublicKey pubKey;
-	OSSLXWingPrivateKey privKey;
-	if (serialisedData.size() != 0 ||
-		!pubKey.deserialise(dPub) || dPub.size() != 0 ||
-		!privKey.deserialise(dPriv) || dPriv.size() != 0)
-	{
-		return false;
-	}
-
 	OSSLXWingKeyPair* kp = new OSSLXWingKeyPair();
-	if (!kp->setPrivateKey(privKey) ||
-		kp->getConstPublicKey()->serialise() != pubKey.serialise())
+	if (!static_cast<XWingPublicKey*>(kp->getPublicKey())->deserialise(dPub) ||
+		!static_cast<XWingPrivateKey*>(kp->getPrivateKey())->deserialise(dPriv))
 	{
 		delete kp;
 		return false;
@@ -545,7 +530,7 @@ bool OSSLXWing::reconstructPublicKey(PublicKey** ppPublicKey,
 {
 	if (ppPublicKey == NULL || serialisedData.size() == 0) return false;
 	OSSLXWingPublicKey* publicKey = new OSSLXWingPublicKey();
-	if (!publicKey->deserialise(serialisedData) || serialisedData.size() != 0)
+	if (!publicKey->deserialise(serialisedData))
 	{
 		delete publicKey;
 		return false;
@@ -559,7 +544,7 @@ bool OSSLXWing::reconstructPrivateKey(PrivateKey** ppPrivateKey,
 {
 	if (ppPrivateKey == NULL || serialisedData.size() == 0) return false;
 	OSSLXWingPrivateKey* privateKey = new OSSLXWingPrivateKey();
-	if (!privateKey->deserialise(serialisedData) || serialisedData.size() != 0)
+	if (!privateKey->deserialise(serialisedData))
 	{
 		delete privateKey;
 		return false;
