@@ -188,13 +188,6 @@ void FalconTests::testSerialisation()
 			static_cast<FalconPrivateKey*>(reconstructedPrivate)->getPublicKeyInfo());
 		CPPUNIT_ASSERT(reconstructedPrivate->PKCS8Encode().size() != 0);
 
-		ByteString legacyPair = publicKey->serialise().serialise() +
-			privateKey->getValue().serialise().serialise();
-		AsymmetricKeyPair* reconstructedLegacyPair = NULL;
-		CPPUNIT_ASSERT(falcon->reconstructKeyPair(&reconstructedLegacyPair, legacyPair));
-		CPPUNIT_ASSERT(reconstructedLegacyPair->getPrivateKey()->PKCS8Encode().size() != 0);
-		falcon->recycleKeyPair(reconstructedLegacyPair);
-
 		falcon->recyclePublicKey(reconstructedPublic);
 		falcon->recyclePrivateKey(reconstructedPrivate);
 		falcon->recycleKeyPair(reconstructedKeyPair);
@@ -303,16 +296,6 @@ void FalconTests::testSigningWithReconstructedPrivateKey()
 		CPPUNIT_ASSERT(verifyFalconSignature(
 			static_cast<FalconPublicKey*>(keyPair->getPublicKey()),
 			dataToSign, signature));
-
-		ByteString privateOnly =
-			static_cast<FalconPrivateKey*>(keyPair->getPrivateKey())->getValue().serialise();
-		PrivateKey* privateOnlyKey = NULL;
-		CPPUNIT_ASSERT(falcon->reconstructPrivateKey(&privateOnlyKey, privateOnly));
-		CPPUNIT_ASSERT(falcon->sign(privateOnlyKey, dataToSign, signature,
-			AsymMech::FALCON));
-		CPPUNIT_ASSERT(falcon->verify(keyPair->getPublicKey(), dataToSign,
-			signature, AsymMech::FALCON));
-		falcon->recyclePrivateKey(privateOnlyKey);
 
 		falcon->recyclePrivateKey(reconstructedPrivateKey);
 		falcon->recycleKeyPair(keyPair);

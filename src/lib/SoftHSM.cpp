@@ -67,6 +67,7 @@
 #include "FalconParameters.h"
 #include "FalconPublicKey.h"
 #include "FalconPrivateKey.h"
+#include "FalconUtil.h"
 #endif
 #ifdef WITH_ML_DSA
 #include "MLDSAParameters.h"
@@ -4790,7 +4791,7 @@ CK_RV SoftHSM::AsymSignInit(CK_SESSION_HANDLE hSession, CK_MECHANISM_PTR pMechan
 			return CKR_HOST_MEMORY;
 		}
 
-		if (getFalconPrivateKey((FalconPrivateKey*)privateKey, token, key) != CKR_OK)
+		if (FalconUtil::getFalconPrivateKey((FalconPrivateKey*)privateKey, token, key) != CKR_OK)
 		{
 			asymCrypto->recyclePrivateKey(privateKey);
 			CryptoFactory::i()->recycleAsymmetricAlgorithm(asymCrypto);
@@ -5921,7 +5922,7 @@ CK_RV SoftHSM::AsymVerifyInit(CK_SESSION_HANDLE hSession, CK_MECHANISM_PTR pMech
 			return CKR_HOST_MEMORY;
 		}
 
-		if (getFalconPublicKey((FalconPublicKey*)publicKey, token, key) != CKR_OK)
+		if (FalconUtil::getFalconPublicKey((FalconPublicKey*)publicKey, token, key) != CKR_OK)
 		{
 			asymCrypto->recyclePublicKey(publicKey);
 			CryptoFactory::i()->recycleAsymmetricAlgorithm(asymCrypto);
@@ -7423,7 +7424,7 @@ CK_RV SoftHSM::C_WrapKey
 #endif
 #ifdef WITH_FALCON
 			case CKK_FALCON:
-				rv = getFalconPrivateKey((FalconPrivateKey*)privateKey, token, key);
+				rv = FalconUtil::getFalconPrivateKey((FalconPrivateKey*)privateKey, token, key);
 				break;
 #endif
 #ifdef WITH_ML_KEM
@@ -8164,7 +8165,7 @@ CK_RV SoftHSM::C_UnwrapKey
 #ifdef WITH_FALCON
 			else if (keyType == CKK_FALCON)
 			{
-				bOK = bOK && setFalconPrivateKey(osobject, keydata, token, isPrivate != CK_FALSE);
+				bOK = bOK && FalconUtil::setFalconPrivateKey(osobject, keydata, token, isPrivate != CK_FALSE);
 			}
 #endif
 #ifdef WITH_ML_KEM
@@ -14725,67 +14726,6 @@ CK_RV SoftHSM::getEDPublicKey(EDPublicKey* publicKey, Token* token, OSObject* ke
 	return CKR_OK;
 }
 
-#ifdef WITH_FALCON
-CK_RV SoftHSM::getFalconPrivateKey(FalconPrivateKey* privateKey, Token* token,
-	OSObject* key)
-{
-	if (privateKey == NULL) return CKR_ARGUMENTS_BAD;
-	if (token == NULL) return CKR_ARGUMENTS_BAD;
-	if (key == NULL) return CKR_ARGUMENTS_BAD;
-
-	const bool isKeyPrivate = key->getBooleanValue(CKA_PRIVATE, false);
-	ByteString value;
-	if (isKeyPrivate)
-	{
-		if (!token->decrypt(key->getByteStringValue(CKA_VALUE), value))
-			return CKR_GENERAL_ERROR;
-	}
-	else
-	{
-		value = key->getByteStringValue(CKA_VALUE);
-	}
-
-	privateKey->setValue(value);
-	value.wipe();
-	ByteString publicKeyInfo = key->getByteStringValue(CKA_PUBLIC_KEY_INFO);
-	if (publicKeyInfo.size() != 0)
-	{
-		if (isKeyPrivate)
-		{
-			ByteString decryptedInfo;
-			if (!token->decrypt(publicKeyInfo, decryptedInfo)) return CKR_GENERAL_ERROR;
-			publicKeyInfo = decryptedInfo;
-		}
-	}
-	privateKey->setPublicKeyInfo(publicKeyInfo);
-	return CKR_OK;
-}
-
-CK_RV SoftHSM::getFalconPublicKey(FalconPublicKey* publicKey, Token* token,
-	OSObject* key)
-{
-	if (publicKey == NULL) return CKR_ARGUMENTS_BAD;
-	if (token == NULL) return CKR_ARGUMENTS_BAD;
-	if (key == NULL) return CKR_ARGUMENTS_BAD;
-
-	const bool isKeyPrivate = key->getBooleanValue(CKA_PRIVATE, false);
-	ByteString value;
-	if (isKeyPrivate)
-	{
-		if (!token->decrypt(key->getByteStringValue(CKA_VALUE), value))
-			return CKR_GENERAL_ERROR;
-	}
-	else
-	{
-		value = key->getByteStringValue(CKA_VALUE);
-	}
-
-	publicKey->setValue(value);
-	value.wipe();
-	return CKR_OK;
-}
-#endif
-
 CK_RV SoftHSM::getDHPrivateKey(DHPrivateKey* privateKey, Token* token, OSObject* key)
 {
 	if (privateKey == NULL) return CKR_ARGUMENTS_BAD;
@@ -15242,44 +15182,6 @@ bool SoftHSM::setEDPrivateKey(OSObject* key, const ByteString &ber, Token* token
 
 	return bOK;
 }
-
-#ifdef WITH_FALCON
-bool SoftHSM::setFalconPrivateKey(OSObject* key, const ByteString &ber, Token* token, bool isPrivate) const
-{
-	AsymmetricAlgorithm* falcon = CryptoFactory::i()->getAsymmetricAlgorithm(AsymAlgo::FALCON);
-	if (falcon == NULL) return false;
-	PrivateKey* priv = falcon->newPrivateKey();
-	if (priv == NULL)
-	{
-		CryptoFactory::i()->recycleAsymmetricAlgorithm(falcon);
-		return false;
-	}
-
-	bool bOK = priv->PKCS8Decode(ber);
-	if (bOK)
-	{
-		FalconPrivateKey* falconPrivateKey = (FalconPrivateKey*)priv;
-		ByteString value;
-		ByteString publicKeyInfo = falconPrivateKey->getPublicKeyInfo();
-		if (isPrivate)
-		{
-			ByteString encryptedInfo;
-			bOK = token->encrypt(publicKeyInfo, encryptedInfo);
-			publicKeyInfo = encryptedInfo;
-			bOK = bOK && token->encrypt(falconPrivateKey->getValue(), value);
-		}
-		else
-			value = falconPrivateKey->getValue();
-		bOK = bOK && key->setAttribute(CKA_PARAMETER_SET, falconPrivateKey->getParameterSet());
-		bOK = bOK && key->setAttribute(CKA_PUBLIC_KEY_INFO, publicKeyInfo);
-		bOK = bOK && key->setAttribute(CKA_VALUE, value);
-	}
-
-	falcon->recyclePrivateKey(priv);
-	CryptoFactory::i()->recycleAsymmetricAlgorithm(falcon);
-	return bOK;
-}
-#endif
 
 bool SoftHSM::setGOSTPrivateKey(OSObject* key, const ByteString &ber, Token* token, bool isPrivate) const
 {

@@ -27,8 +27,9 @@ libsofthsm_crypto_la_SOURCES =	AESKey.cpp \
 				EDPublicKey.cpp \
 				EDPrivateKey.cpp \
 				FalconParameters.cpp \
-				FalconPublicKey.cpp \
 				FalconPrivateKey.cpp \
+				FalconPublicKey.cpp \
+				FalconUtil.cpp \
 				GOSTPublicKey.cpp \
 				GOSTPrivateKey.cpp \
 				HashAlgorithm.cpp \
@@ -83,6 +84,10 @@ libsofthsm_crypto_la_SOURCES +=	OSSLAES.cpp \
 				OSSLEVPMacAlgorithm.cpp \
 				OSSLEVPCMacAlgorithm.cpp \
 				OSSLEVPSymmetricAlgorithm.cpp \
+				OSSLFalcon.cpp \
+				OSSLFalconKeyPair.cpp \
+				OSSLFalconPrivateKey.cpp \
+				OSSLFalconPublicKey.cpp \
 				OSSLGOST.cpp \
 				OSSLGOSTKeyPair.cpp \
 				OSSLGOSTPrivateKey.cpp \
@@ -91,10 +96,6 @@ libsofthsm_crypto_la_SOURCES +=	OSSLAES.cpp \
 				OSSLCMAC.cpp \
 				OSSLHMAC.cpp \
 				OSSLMD5.cpp \
-				OSSLFalcon.cpp \
-				OSSLFalconKeyPair.cpp \
-				OSSLFalconPrivateKey.cpp \
-				OSSLFalconPublicKey.cpp \
 				OSSLMLDSA.cpp \
 				OSSLMLDSAKeyPair.cpp \
 				OSSLMLDSAPrivateKey.cpp \

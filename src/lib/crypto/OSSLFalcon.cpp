@@ -20,7 +20,6 @@
 #include "OSSLUtil.h"
 #include <openssl/err.h>
 #include <openssl/evp.h>
-#include <openssl/x509.h>
 
 bool OSSLFalcon::sign(PrivateKey* privateKey, const ByteString& dataToSign,
 	ByteString& signature, const AsymMech::Type mechanism,
@@ -299,20 +298,6 @@ bool OSSLFalcon::reconstructKeyPair(AsymmetricKeyPair** ppKeyPair,
 	{
 		delete keyPair;
 		return false;
-	}
-	// Older serialisations kept the public component only in the key pair.
-	if (privateKey->getPublicKeyInfo().size() == 0)
-	{
-		EVP_PKEY* publicPkey = publicKey->getOSSLKey();
-		const int length = publicPkey == NULL ? 0 : i2d_PUBKEY(publicPkey, NULL);
-		if (length > 0)
-		{
-			ByteString info;
-			info.resize(length);
-			unsigned char* output = info.byte_str();
-			if (i2d_PUBKEY(publicPkey, &output) == length)
-				privateKey->setPublicKeyInfo(info);
-		}
 	}
 	*ppKeyPair = keyPair;
 	return true;

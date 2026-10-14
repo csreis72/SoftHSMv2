@@ -29,6 +29,7 @@ set(SOURCES AESKey.cpp
             FalconParameters.cpp
             FalconPrivateKey.cpp
             FalconPublicKey.cpp
+            FalconUtil.cpp
             GOSTPrivateKey.cpp
             GOSTPublicKey.cpp
             HashAlgorithm.cpp
@@ -77,6 +78,10 @@ if(WITH_OPENSSL)
                         OSSLEVPHashAlgorithm.cpp
                         OSSLEVPMacAlgorithm.cpp
                         OSSLEVPSymmetricAlgorithm.cpp
+                        OSSLFalcon.cpp
+                        OSSLFalconKeyPair.cpp
+                        OSSLFalconPrivateKey.cpp
+                        OSSLFalconPublicKey.cpp
                         OSSLGOST.cpp
                         OSSLGOSTKeyPair.cpp
                         OSSLGOSTPrivateKey.cpp
@@ -84,10 +89,6 @@ if(WITH_OPENSSL)
                         OSSLGOSTR3411.cpp
                         OSSLHMAC.cpp
                         OSSLMD5.cpp
-                        OSSLFalcon.cpp
-                        OSSLFalconKeyPair.cpp
-                        OSSLFalconPrivateKey.cpp
-                        OSSLFalconPublicKey.cpp
                         OSSLMLDSA.cpp
                         OSSLMLDSAKeyPair.cpp
                         OSSLMLDSAPrivateKey.cpp
