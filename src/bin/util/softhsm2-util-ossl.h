@@ -200,8 +200,6 @@ typedef struct mlkem_key_material_t {
 } mlkem_key_material_t;
 #endif
 
-EVP_PKEY* crypto_read_file(char* filePath, char* filePIN);
-
 // RSA
 int crypto_save_rsa(CK_SESSION_HANDLE hSession, char* label, char* objID, size_t objIDLen, int noPublicKey, RSA* rsa);
 rsa_key_material_t* crypto_malloc_rsa(RSA* rsa);

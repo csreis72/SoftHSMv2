@@ -148,10 +148,10 @@ int crypto_import_key_pair
 	int noPublicKey
 )
 {
-#ifdef WITH_X_WING
 	PKCS8_PRIV_KEY_INFO* keyInfo = crypto_read_pkcs8_file(filePath, filePIN);
 	if (keyInfo == NULL) return 1;
 
+#ifdef WITH_X_WING
 	const ASN1_OBJECT* algorithm = NULL;
 	ASN1_OBJECT* xwingOID = OBJ_txt2obj(XWingParameters::X_WING_OID, 1);
 	const bool isXWing = xwingOID != NULL &&
@@ -165,13 +165,11 @@ int crypto_import_key_pair
 		PKCS8_PRIV_KEY_INFO_free(keyInfo);
 		return result;
 	}
+#endif
 
 	EVP_PKEY* pkey = EVP_PKCS82PKEY(keyInfo);
 	PKCS8_PRIV_KEY_INFO_free(keyInfo);
 	if (pkey == NULL) fprintf(stderr, "ERROR: Could not convert the key.\n");
-#else
-	EVP_PKEY* pkey = crypto_read_file(filePath, filePIN);
-#endif
 	if (pkey == NULL)
 	{
 		return 1;
@@ -514,23 +512,6 @@ static PKCS8_PRIV_KEY_INFO* crypto_read_pkcs8_file(char* filePath, char* filePIN
 	}
 
 	return p8inf;
-}
-
-EVP_PKEY* crypto_read_file(char* filePath, char* filePIN)
-{
-	PKCS8_PRIV_KEY_INFO* p8inf = crypto_read_pkcs8_file(filePath, filePIN);
-	if (p8inf == NULL) return NULL;
-
-	// Convert the PKCS#8 to OpenSSL
-	EVP_PKEY* pkey = EVP_PKCS82PKEY(p8inf);
-	PKCS8_PRIV_KEY_INFO_free(p8inf);
-	if (!pkey)
-	{
-		fprintf(stderr, "ERROR: Could not convert the key.\n");
-		return NULL;
-	}
-
-	return pkey;
 }
 
 // Save the key data in PKCS#11

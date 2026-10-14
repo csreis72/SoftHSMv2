@@ -43,11 +43,12 @@ libsofthsm_crypto_la_SOURCES =	AESKey.cpp \
 				RSAParameters.cpp \
 				RSAPrivateKey.cpp \
 				RSAPublicKey.cpp \
+				SymmetricAlgorithm.cpp \
+				SymmetricKey.cpp \
 				XWingParameters.cpp \
 				XWingPrivateKey.cpp \
 				XWingPublicKey.cpp \
-				SymmetricAlgorithm.cpp \
-				SymmetricKey.cpp
+				XWingUtil.cpp
 libsofthsm_crypto_la_LIBADD =	@CRYPTO_LIBS@
 
 SUBDIRS =			test

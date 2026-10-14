@@ -80,6 +80,7 @@
 #include "XWingParameters.h"
 #include "XWingPublicKey.h"
 #include "XWingPrivateKey.h"
+#include "XWingUtil.h"
 #endif
 #include "cryptoki.h"
 #include "SoftHSM.h"
@@ -7343,7 +7344,7 @@ CK_RV SoftHSM::C_WrapKey
 #endif
 #ifdef WITH_X_WING
 			case CKK_X_WING:
-				rv = getXWingPrivateKey((XWingPrivateKey*)privateKey, token, key);
+				rv = XWingUtil::getXWingPrivateKey((XWingPrivateKey*)privateKey, token, key);
 				break;
 #endif
 		}
@@ -8085,7 +8086,7 @@ CK_RV SoftHSM::C_UnwrapKey
 #ifdef WITH_X_WING
 			else if (keyType == CKK_X_WING)
 			{
-				bOK = bOK && setXWingPrivateKey(osobject, keydata, token, isPrivate != CK_FALSE);
+				bOK = bOK && XWingUtil::setXWingPrivateKey(osobject, keydata, token, isPrivate != CK_FALSE);
 			}
 #endif
 			else
@@ -8538,7 +8539,7 @@ CK_RV SoftHSM::C_EncapsulateKey
 #endif
 #ifdef WITH_X_WING
 	if (algo == AsymAlgo::XWING &&
-		getXWingPublicKey((XWingPublicKey*)publicKey, token, encapsulationKey) != CKR_OK)
+		XWingUtil::getXWingPublicKey((XWingPublicKey*)publicKey, token, encapsulationKey) != CKR_OK)
 	{
 		cipher->recyclePublicKey(publicKey);
 		CryptoFactory::i()->recycleAsymmetricAlgorithm(cipher);
@@ -8920,7 +8921,7 @@ CK_RV SoftHSM::C_DecapsulateKey
 #endif
 #ifdef WITH_X_WING
 	if (algo == AsymAlgo::XWING &&
-		getXWingPrivateKey((XWingPrivateKey*)privateKey, token, decapsulationKey) != CKR_OK)
+		XWingUtil::getXWingPrivateKey((XWingPrivateKey*)privateKey, token, decapsulationKey) != CKR_OK)
 	{
 		cipher->recyclePrivateKey(privateKey);
 		CryptoFactory::i()->recycleAsymmetricAlgorithm(cipher);
@@ -14885,52 +14886,6 @@ CK_RV SoftHSM::getGOSTPublicKey(GOSTPublicKey* publicKey, Token* token, OSObject
 	return CKR_OK;
 }
 
-#ifdef WITH_X_WING
-CK_RV SoftHSM::getXWingPrivateKey(XWingPrivateKey* privateKey, Token* token, OSObject* key)
-{
-	if (privateKey == NULL) return CKR_ARGUMENTS_BAD;
-	if (token == NULL) return CKR_ARGUMENTS_BAD;
-	if (key == NULL) return CKR_ARGUMENTS_BAD;
-
-	ByteString value;
-	if (key->getBooleanValue(CKA_PRIVATE, false))
-	{
-		if (!token->decrypt(key->getByteStringValue(CKA_VALUE), value))
-			return CKR_GENERAL_ERROR;
-	}
-	else
-		value = key->getByteStringValue(CKA_VALUE);
-	if (value.size() != XWingParameters::X_WING_PRIV_LENGTH)
-		return CKR_GENERAL_ERROR;
-
-	privateKey->setValue(value);
-	value.wipe();
-	return CKR_OK;
-}
-
-CK_RV SoftHSM::getXWingPublicKey(XWingPublicKey* publicKey, Token* token, OSObject* key)
-{
-	if (publicKey == NULL) return CKR_ARGUMENTS_BAD;
-	if (token == NULL) return CKR_ARGUMENTS_BAD;
-	if (key == NULL) return CKR_ARGUMENTS_BAD;
-
-	ByteString value;
-	if (key->getBooleanValue(CKA_PRIVATE, false))
-	{
-		if (!token->decrypt(key->getByteStringValue(CKA_VALUE), value))
-			return CKR_GENERAL_ERROR;
-	}
-	else
-		value = key->getByteStringValue(CKA_VALUE);
-	if (value.size() != XWingParameters::X_WING_PUB_LENGTH)
-		return CKR_GENERAL_ERROR;
-
-	publicKey->setValue(value);
-	value.wipe();
-	return CKR_OK;
-}
-#endif
-
 CK_RV SoftHSM::getSymmetricKey(SymmetricKey* skey, Token* token, OSObject* key)
 {
 	if (skey == NULL) return CKR_ARGUMENTS_BAD;
@@ -15191,35 +15146,6 @@ bool SoftHSM::setEDPrivateKey(OSObject* key, const ByteString &ber, Token* token
 
 	return bOK;
 }
-
-#ifdef WITH_X_WING
-bool SoftHSM::setXWingPrivateKey(OSObject* key, const ByteString &ber, Token* token, bool isPrivate) const
-{
-	AsymmetricAlgorithm* xwing = CryptoFactory::i()->getAsymmetricAlgorithm(AsymAlgo::XWING);
-	if (xwing == NULL) return false;
-	PrivateKey* priv = xwing->newPrivateKey();
-	if (priv == NULL)
-	{
-		CryptoFactory::i()->recycleAsymmetricAlgorithm(xwing);
-		return false;
-	}
-
-	bool bOK = priv->PKCS8Decode(ber);
-	if (bOK)
-	{
-		ByteString value;
-		if (isPrivate)
-			bOK = token->encrypt(((XWingPrivateKey*)priv)->getValue(), value);
-		else
-			value = ((XWingPrivateKey*)priv)->getValue();
-		bOK = bOK && key->setAttribute(CKA_VALUE, value);
-	}
-
-	xwing->recyclePrivateKey(priv);
-	CryptoFactory::i()->recycleAsymmetricAlgorithm(xwing);
-	return bOK;
-}
-#endif
 
 bool SoftHSM::setGOSTPrivateKey(OSObject* key, const ByteString &ber, Token* token, bool isPrivate) const
 {
