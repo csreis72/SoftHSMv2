@@ -1023,6 +1023,105 @@ void SignVerifyTests::testFalconSignVerify(CK_ULONG parameterSet)
 	CPPUNIT_ASSERT(rv == CKR_OK);
 	signVerifySingle(CKM_FALCON, hSessionRO, hPuk,hPrk);
 }
+
+void SignVerifyTests::testFalconSignVerifyMultiPart(CK_ULONG parameterSet)
+{
+	CK_RV rv;
+	CK_SESSION_HANDLE hSession;
+	CK_OBJECT_HANDLE hPuk;
+	CK_OBJECT_HANDLE hPrk;
+	CK_MECHANISM mechanism = { CKM_FALCON, NULL_PTR, 0 };
+	CK_BYTE data[] = { 0x00, 0x01, 0x02, 0x03 };
+	CK_BYTE signature[1462];
+	CK_ULONG ulSignatureLen = sizeof(signature);
+
+	CRYPTOKI_F_PTR( C_Finalize(NULL_PTR) );
+	CPPUNIT_ASSERT_EQUAL(CKR_OK, CRYPTOKI_F_PTR( C_Initialize(NULL_PTR) ));
+	rv = CRYPTOKI_F_PTR( C_OpenSession(m_initializedTokenSlotID, CKF_SERIAL_SESSION | CKF_RW_SESSION, NULL_PTR, NULL_PTR, &hSession) );
+	CPPUNIT_ASSERT_EQUAL(CKR_OK, rv);
+	CPPUNIT_ASSERT_EQUAL(CKR_OK, CRYPTOKI_F_PTR( C_Login(hSession, CKU_USER, m_userPin1, m_userPin1Length) ));
+	rv = generateFalcon(parameterSet, hSession, IN_SESSION, IS_PUBLIC, IN_SESSION, IS_PRIVATE, hPuk, hPrk);
+	CPPUNIT_ASSERT_EQUAL(CKR_OK, rv);
+
+	CPPUNIT_ASSERT_EQUAL(CKR_OK, CRYPTOKI_F_PTR( C_SignInit(hSession, &mechanism, hPrk) ));
+	rv = CRYPTOKI_F_PTR( C_SignUpdate(hSession, data, sizeof(data)) );
+	CPPUNIT_ASSERT_EQUAL(CKR_OPERATION_NOT_INITIALIZED, rv);
+	rv = CRYPTOKI_F_PTR( C_SignFinal(hSession, signature, &ulSignatureLen) );
+	CPPUNIT_ASSERT_EQUAL(CKR_OPERATION_NOT_INITIALIZED, rv);
+
+	// A rejected update terminates the operation and permits a new one.
+	CPPUNIT_ASSERT_EQUAL(CKR_OK, CRYPTOKI_F_PTR( C_SignInit(hSession, &mechanism, hPrk) ));
+	CPPUNIT_ASSERT_EQUAL(CKR_OK, CRYPTOKI_F_PTR( C_Sign(hSession, data, sizeof(data), signature, &ulSignatureLen) ));
+	CPPUNIT_ASSERT_EQUAL(CKR_OK, CRYPTOKI_F_PTR( C_VerifyInit(hSession, &mechanism, hPuk) ));
+	rv = CRYPTOKI_F_PTR( C_VerifyUpdate(hSession, data, sizeof(data)) );
+	CPPUNIT_ASSERT_EQUAL(CKR_OPERATION_NOT_INITIALIZED, rv);
+	rv = CRYPTOKI_F_PTR( C_VerifyFinal(hSession, signature, ulSignatureLen) );
+	CPPUNIT_ASSERT_EQUAL(CKR_OPERATION_NOT_INITIALIZED, rv);
+	CPPUNIT_ASSERT_EQUAL(CKR_OK, CRYPTOKI_F_PTR( C_VerifyInit(hSession, &mechanism, hPuk) ));
+	CPPUNIT_ASSERT_EQUAL(CKR_OK, CRYPTOKI_F_PTR( C_Verify(hSession, data, sizeof(data), signature, ulSignatureLen) ));
+
+	CPPUNIT_ASSERT_EQUAL(CKR_OK, CRYPTOKI_F_PTR( C_DestroyObject(hSession, hPrk) ));
+	CPPUNIT_ASSERT_EQUAL(CKR_OK, CRYPTOKI_F_PTR( C_DestroyObject(hSession, hPuk) ));
+	CPPUNIT_ASSERT_EQUAL(CKR_OK, CRYPTOKI_F_PTR( C_CloseSession(hSession) ));
+}
+
+void SignVerifyTests::testFalconSignatureLength(CK_ULONG parameterSet)
+{
+	CK_RV rv;
+	CK_SESSION_HANDLE hSession;
+	CK_OBJECT_HANDLE hPuk;
+	CK_OBJECT_HANDLE hPrk;
+	CK_MECHANISM mechanism = { CKM_FALCON, NULL_PTR, 0 };
+	CK_BYTE data[] = { 0x00, 0x01, 0x02, 0x03 };
+	CK_BYTE signature[1463] = { 0 };
+	CK_ULONG maxSignatureLen = parameterSet == CKP_FALCON_512 ? 752 : 1462;
+	CK_ULONG ulSignatureLen = 0;
+
+	CRYPTOKI_F_PTR( C_Finalize(NULL_PTR) );
+	CPPUNIT_ASSERT_EQUAL(CKR_OK, CRYPTOKI_F_PTR( C_Initialize(NULL_PTR) ));
+	rv = CRYPTOKI_F_PTR( C_OpenSession(m_initializedTokenSlotID, CKF_SERIAL_SESSION | CKF_RW_SESSION, NULL_PTR, NULL_PTR, &hSession) );
+	CPPUNIT_ASSERT_EQUAL(CKR_OK, rv);
+	CPPUNIT_ASSERT_EQUAL(CKR_OK, CRYPTOKI_F_PTR( C_Login(hSession, CKU_USER, m_userPin1, m_userPin1Length) ));
+	rv = generateFalcon(parameterSet, hSession, IN_SESSION, IS_PUBLIC, IN_SESSION, IS_PRIVATE, hPuk, hPrk);
+	CPPUNIT_ASSERT_EQUAL(CKR_OK, rv);
+
+	// Size queries and short buffers must preserve the signing operation.
+	CPPUNIT_ASSERT_EQUAL(CKR_OK, CRYPTOKI_F_PTR( C_SignInit(hSession, &mechanism, hPrk) ));
+	rv = CRYPTOKI_F_PTR( C_Sign(hSession, data, sizeof(data), NULL_PTR, &ulSignatureLen) );
+	CPPUNIT_ASSERT_EQUAL(CKR_OK, rv);
+	CPPUNIT_ASSERT_EQUAL(maxSignatureLen, ulSignatureLen);
+	ulSignatureLen = maxSignatureLen - 1;
+	rv = CRYPTOKI_F_PTR( C_Sign(hSession, data, sizeof(data), signature, &ulSignatureLen) );
+	CPPUNIT_ASSERT_EQUAL(CKR_BUFFER_TOO_SMALL, rv);
+	CPPUNIT_ASSERT_EQUAL(maxSignatureLen, ulSignatureLen);
+	rv = CRYPTOKI_F_PTR( C_Sign(hSession, data, sizeof(data), signature, &ulSignatureLen) );
+	CPPUNIT_ASSERT_EQUAL(CKR_OK, rv);
+	CPPUNIT_ASSERT(ulSignatureLen > 0);
+	CPPUNIT_ASSERT(ulSignatureLen <= maxSignatureLen);
+	CPPUNIT_ASSERT_EQUAL(CKR_OK, CRYPTOKI_F_PTR( C_VerifyInit(hSession, &mechanism, hPuk) ));
+	CPPUNIT_ASSERT_EQUAL(CKR_OK, CRYPTOKI_F_PTR( C_Verify(hSession, data, sizeof(data), signature, ulSignatureLen) ));
+
+	CK_ULONG invalidLengths[] = { 0, maxSignatureLen + 1 };
+	for (size_t i = 0; i < sizeof(invalidLengths) / sizeof(CK_ULONG); ++i)
+	{
+		CPPUNIT_ASSERT_EQUAL(CKR_OK, CRYPTOKI_F_PTR( C_VerifyInit(hSession, &mechanism, hPuk) ));
+		rv = CRYPTOKI_F_PTR( C_Verify(hSession, data, sizeof(data), signature, invalidLengths[i]) );
+		CPPUNIT_ASSERT_EQUAL(CKR_SIGNATURE_LEN_RANGE, rv);
+		rv = CRYPTOKI_F_PTR( C_Verify(hSession, data, sizeof(data), signature, ulSignatureLen) );
+		CPPUNIT_ASSERT_EQUAL(CKR_OPERATION_NOT_INITIALIZED, rv);
+	}
+
+	// An in-range but malformed signature is not a length error.
+	CPPUNIT_ASSERT_EQUAL(CKR_OK, CRYPTOKI_F_PTR( C_VerifyInit(hSession, &mechanism, hPuk) ));
+	rv = CRYPTOKI_F_PTR( C_Verify(hSession, data, sizeof(data), signature, 1) );
+	CPPUNIT_ASSERT_EQUAL(CKR_SIGNATURE_INVALID, rv);
+	CPPUNIT_ASSERT_EQUAL(CKR_OK, CRYPTOKI_F_PTR( C_VerifyInit(hSession, &mechanism, hPuk) ));
+	CPPUNIT_ASSERT_EQUAL(CKR_OK, CRYPTOKI_F_PTR( C_Verify(hSession, data, sizeof(data), signature, ulSignatureLen) ));
+
+	CPPUNIT_ASSERT_EQUAL(CKR_OK, CRYPTOKI_F_PTR( C_DestroyObject(hSession, hPrk) ));
+	CPPUNIT_ASSERT_EQUAL(CKR_OK, CRYPTOKI_F_PTR( C_DestroyObject(hSession, hPuk) ));
+	CPPUNIT_ASSERT_EQUAL(CKR_OK, CRYPTOKI_F_PTR( C_CloseSession(hSession) ));
+}
 #endif
 
 

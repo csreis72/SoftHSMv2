@@ -55,6 +55,10 @@ class SignVerifyTests : public TestsBase
 #ifdef WITH_FALCON
 	CPPUNIT_TEST_PARAMETERIZED(testFalconSignVerify,
 		{CKP_FALCON_512, CKP_FALCON_1024});
+	CPPUNIT_TEST_PARAMETERIZED(testFalconSignVerifyMultiPart,
+		{CKP_FALCON_512, CKP_FALCON_1024});
+	CPPUNIT_TEST_PARAMETERIZED(testFalconSignatureLength,
+		{CKP_FALCON_512, CKP_FALCON_1024});
 #endif
 	CPPUNIT_TEST(testSignInitWrongKeyType);
 	CPPUNIT_TEST(testVerifyInitWrongKeyType);
@@ -74,6 +78,8 @@ public:
 #endif
 #ifdef WITH_FALCON
 	void testFalconSignVerify(CK_ULONG parameterSet);
+	void testFalconSignVerifyMultiPart(CK_ULONG parameterSet);
+	void testFalconSignatureLength(CK_ULONG parameterSet);
 #endif
 	void testSignInitWrongKeyType();
 	void testVerifyInitWrongKeyType();
