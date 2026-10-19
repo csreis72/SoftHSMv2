@@ -4,6 +4,10 @@ TESTS_ENVIRONMENT =		top_builddir='$(top_builddir)' top_srcdir='$(top_srcdir)' s
 
 TESTS = 			mldsa44-import-key-test.sh mlkem512-import-key-test.sh
 
+if WITH_FALCON
+TESTS += falcon512-import-key-test.sh falcon1024-import-key-test.sh
+endif
+
 if WITH_X_WING
 TESTS += xwing-import-key-test.sh
 endif
@@ -15,4 +19,5 @@ EXTRA_DIST =			$(srcdir)/CMakeLists.txt \
 				$(srcdir)/mldsa44-import-key-test.sh \
 				$(srcdir)/mlkem512-import-key-test.sh
 
+EXTRA_DIST += $(srcdir)/falcon512-import-key-test.sh $(srcdir)/falcon1024-import-key-test.sh
 EXTRA_DIST += $(srcdir)/xwing-import-key-test.sh $(srcdir)/xwing-test-key.pem

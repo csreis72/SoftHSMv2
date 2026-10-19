@@ -42,7 +42,7 @@
 #ifdef WITH_ECC
 #include <openssl/ec.h>
 #endif
-#if defined(WITH_EDDSA) || defined(WITH_X_WING) || defined(WITH_ML_DSA) || defined(WITH_ML_KEM)
+#if defined(WITH_EDDSA) || defined(WITH_FALCON) || defined(WITH_X_WING) || defined(WITH_ML_DSA) || defined(WITH_ML_KEM)
 #include <openssl/evp.h>
 #endif
 #if defined(WITH_ML_DSA) || defined(WITH_ML_KEM)
@@ -236,6 +236,11 @@ void crypto_free_mldsa(mldsa_key_material_t* keyMat);
 int crypto_save_mlkem(CK_SESSION_HANDLE hSession, char* label, char* objID, size_t objIDLen, int noPublicKey, EVP_PKEY* mlkem);
 mlkem_key_material_t* crypto_malloc_mlkem(EVP_PKEY* mlkem);
 void crypto_free_mlkem(mlkem_key_material_t* keyMat);
+#endif
+
+#ifdef WITH_FALCON
+// Falcon
+int crypto_save_falcon(CK_SESSION_HANDLE hSession, char* label, char* objID, size_t objIDLen, int noPublicKey, EVP_PKEY* falcon);
 #endif
 
 #ifdef WITH_X_WING

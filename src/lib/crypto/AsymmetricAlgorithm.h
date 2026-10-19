@@ -60,6 +60,7 @@ struct AsymAlgo
 		EDDSA,
 		MLDSA,
 		MLKEM,
+		FALCON,
 		XWING
         };
 };
@@ -102,6 +103,7 @@ struct AsymMech
 		EDDSA,
 		MLDSA,
 		MLKEM,
+		FALCON,
 		XWING
 	};
 };

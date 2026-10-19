@@ -410,6 +410,7 @@ extern "C" {
 #define sequence_number ulSequenceNumber
 
 #define ck_hedge_type_t CK_HEDGE_TYPE
+#define ck_falcon_parameter_set_type_t CK_FALCON_PARAMETER_SET_TYPE
 #define ck_ml_dsa_parameter_set_type_t CK_ML_DSA_PARAMETER_SET_TYPE
 #define ck_ml_kem_parameter_set_type_t CK_ML_KEM_PARAMETER_SET_TYPE
 #define ck_session_validation_flags_type_t CK_SESSION_VALIDATION_FLAGS_TYPE
@@ -813,6 +814,7 @@ extern "C" {
 #define CKK_ML_DSA                              (0x4AUL)
 #define CKK_SLH_DSA                             (0x4BUL)
 #define CKK_VENDOR_DEFINED                      ((unsigned long) (1UL << 31))
+#define CKK_FALCON                              (CKK_VENDOR_DEFINED | 0x00000001UL)
 #define CKK_X_WING                              (CKK_VENDOR_DEFINED | 0x00000002UL)
 
 /* CK_MECHANISM_TYPE */
@@ -1295,6 +1297,8 @@ extern "C" {
 #define CKM_ECDH_COF_AES_KEY_WRAP               (0x4039UL)
 #define CKM_PUB_KEY_FROM_PRIV_KEY               (0x403AUL)
 #define CKM_VENDOR_DEFINED                      ((unsigned long) (1UL << 31))
+#define CKM_FALCON_KEY_PAIR_GEN                 (CKM_VENDOR_DEFINED | 0x00000001UL)
+#define CKM_FALCON                              (CKM_VENDOR_DEFINED | 0x00000002UL)
 #define CKM_X_WING_KEY_PAIR_GEN                 (CKM_VENDOR_DEFINED | 0x00000003UL)
 #define CKM_X_WING                              (CKM_VENDOR_DEFINED | 0x00000004UL)
 
@@ -1342,6 +1346,10 @@ extern "C" {
 #define CKP_ML_DSA_44                           (1UL)
 #define CKP_ML_DSA_65                           (2UL)
 #define CKP_ML_DSA_87                           (3UL)
+
+/* CK_FALCON_PARAMETER_SET_TYPE */
+#define CKP_FALCON_512                          (1UL)
+#define CKP_FALCON_1024                         (2UL)
 
 /* CK_ML_KEM_PARAMETER_SET_TYPE */
 #define CKP_ML_KEM_512                          (1UL)
@@ -1594,6 +1602,7 @@ typedef unsigned long ck_x3dh_kdf_type_t;
 typedef unsigned long ck_x9_42_dh_kdf_type_t;
 typedef unsigned long ck_xeddsa_hash_type_t;
 typedef unsigned long ck_hedge_type_t;
+typedef unsigned long ck_falcon_parameter_set_type_t;
 typedef unsigned long ck_ml_dsa_parameter_set_type_t;
 typedef unsigned long ck_ml_kem_parameter_set_type_t;
 typedef unsigned long ck_session_validation_flags_type_t;

@@ -158,6 +158,9 @@ check_function_exists(getpwuid_r HAVE_GETPWUID_R)
 if(WITH_CRYPTO_BACKEND STREQUAL "botan")
     set(WITH_BOTAN 1)
 
+    if(ENABLE_FALCON)
+        message(FATAL_ERROR "Botan does not support Falcon")
+    endif()
     if(ENABLE_XWING)
         message(FATAL_ERROR "Botan does not support X-Wing")
     endif()
@@ -373,6 +376,26 @@ elseif(WITH_CRYPTO_BACKEND STREQUAL "openssl")
     else(ENABLE_EDDSA)
         message(STATUS "OpenSSL: Support for EDDSA is disabled")
     endif(ENABLE_EDDSA)
+
+    # acx_openssl_falcon.m4
+    if(ENABLE_FALCON)
+        set(testfile ${CMAKE_SOURCE_DIR}/cmake/modules/tests/test_openssl_falcon.c)
+        try_run(RUN_FALCON COMPILE_RESULT
+                "${CMAKE_BINARY_DIR}/prebuild_santity_tests" ${testfile}
+                LINK_LIBRARIES ${CRYPTO_LIBS}
+                CMAKE_FLAGS
+                    "-DINCLUDE_DIRECTORIES=${CRYPTO_INCLUDES}"
+                )
+        if(COMPILE_RESULT AND RUN_FALCON EQUAL 0)
+            set(WITH_FALCON 1)
+            message(STATUS "OpenSSL: Found Falcon-512 and Falcon-1024")
+        else()
+            set(error_msg "OpenSSL: Falcon-512 and Falcon-1024 support is required!")
+            message(FATAL_ERROR ${error_msg})
+        endif()
+    else(ENABLE_FALCON)
+        message(STATUS "OpenSSL: Support for Falcon-512 and Falcon-1024 is disabled")
+    endif(ENABLE_FALCON)
 
     # acx_openssl_mldsa.m4
     if(ENABLE_MLDSA)
