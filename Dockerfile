@@ -130,6 +130,8 @@ RUN chmod +x /usr/local/bin/entrypoint.sh
 ENV LD_LIBRARY_PATH="/opt/openssl/lib64:/opt/liboqs/lib"
 ENV PATH="/opt/softhsm2/bin:/opt/openssl/bin:${PATH}"
 ENV OPENSSL_CONF="/opt/openssl/etc/ssl/openssl.cnf"
+ENV SSL_CERT_FILE="/etc/ssl/certs/ca-certificates.crt"
+ENV SSL_CERT_DIR="/etc/ssl/certs"
 ENV OPENSSL_ROOT_DIR="/opt/openssl"
 ENV PKG_CONFIG_PATH="/opt/openssl/lib64/pkgconfig:/opt/liboqs/lib/pkgconfig"
 ENV SOFTHSM2_CONF="/etc/softhsm2.conf"
